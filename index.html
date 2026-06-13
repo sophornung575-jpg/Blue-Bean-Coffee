@@ -3,22 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Blue Bean Coffee — Menu & Orders</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F37D;&#xFE0F;</text></svg>">
-
-<!-- Firebase SDK (ESM via CDN) -->
+<title>Blue Bean Coffee</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
 <script type="module">
-import { initializeApp }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, doc,
-         updateDoc, deleteDoc, onSnapshot, query, orderBy,
-         serverTimestamp, setDoc, getDoc }
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
+         onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-/* ==============================================
-   FIREBASE CONFIG  ← paste your values here
-   Firebase Console → Project Settings → Your Apps
-================================================ */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAfjFM2giRC2Rj38G1a0j7eAprmxhYDkKE",
   authDomain:        "blue-bean-coffee-ec0c3.firebaseapp.com",
@@ -28,246 +22,298 @@ const FIREBASE_CONFIG = {
   appId:             "1:368021122549:web:cc9241bc3e6b30516884bc",
   measurementId:     "G-XSSB39JRS5"
 };
-/* ============================================ */
 
-const app = initializeApp(FIREBASE_CONFIG);
-const db  = getFirestore(app);
+const app     = initializeApp(FIREBASE_CONFIG);
+const db      = getFirestore(app);
+const storage = getStorage(app);
 
-/* ── MENU DATA ── */
-const MENU_DATA = [
-  {id:1,cat:"Noodles",name:"Beef Noodle Soup",price:8.50,emoji:"🍜"},
-  {id:2,cat:"Noodles",name:"Seafood Laksa",price:10.00,emoji:"🦐"},
-  {id:3,cat:"Noodles",name:"Dry Egg Noodles",price:7.00,emoji:"🍝"},
-  {id:4,cat:"Rice",name:"Special Fried Rice",price:7.50,emoji:"🍳"},
-  {id:5,cat:"Rice",name:"Roast Duck on Rice",price:12.00,emoji:"🦆"},
-  {id:6,cat:"Rice",name:"Braised Pork Bowl",price:9.00,emoji:"🥚"},
-  {id:7,cat:"Starters",name:"Spring Rolls (4 pcs)",price:5.00,emoji:"🌯"},
-  {id:8,cat:"Starters",name:"Papaya Salad",price:5.50,emoji:"🥗"},
-  {id:9,cat:"Starters",name:"Chicken Satay (3 pcs)",price:6.50,emoji:"🍢"},
-  {id:10,cat:"Drinks",name:"Fresh Lime Juice",price:2.50,emoji:"🍋"},
-  {id:11,cat:"Drinks",name:"Thai Iced Tea",price:3.00,emoji:"🧋"},
-  {id:12,cat:"Drinks",name:"Young Coconut",price:3.50,emoji:"🥥"},
-  {id:13,cat:"Dessert",name:"Mango Sticky Rice",price:5.00,emoji:"🥭"},
-  {id:14,cat:"Dessert",name:"Fried Banana (3 pcs)",price:4.00,emoji:"🍌"},
-];
+/* ─── CONSTANTS ─── */
+const KHR_RATE = 4100; // 1 USD = 4100 KHR (adjust as needed)
 
-/* ── STATE ── */
-let cart = [], orders = [];
-let settings = {name:"My Restaurant",addr:"Phnom Penh, Cambodia",table:3,tax:10};
-let btDevice = null, activeCat = "All", activeAdminTab = "live";
-let activeQRTable = 1, activeReceiptId = null, unsubOrders = null;
+/* ─── STATE ─── */
+let menuItems    = [];   // loaded from Firestore "menu" collection
+let cart         = [];
+let orders       = [];
+let settings     = { name:"Blue Bean Coffee", addr:"Phnom Penh, Cambodia", table:1, tax:0 };
+let btDevice     = null;
+let activeCat    = "All";
+let activeAdminTab = "live";
+let activeMenuTab  = "items"; // items | add | edit
+let editItemId     = null;
+let activeQRTable  = 1;
+let activeReceiptId = null;
+let unsubOrders  = null;
+let unsubMenu    = null;
 
-/* ── FIRESTORE REFS ── */
-const ordersCol   = () => collection(db,"orders");
-const settingsDoc = () => doc(db,"config","settings");
-const tgDoc       = () => doc(db,"config","telegram");
+/* ─── FIRESTORE REFS ─── */
+const ordersCol   = () => collection(db, "orders");
+const menuCol     = () => collection(db, "menu");
+const settingsDoc = () => doc(db, "config", "settings");
+const tgDoc       = () => doc(db, "config", "telegram");
 
-/* ── BOOT ── */
+/* ─── BOOT ─── */
 async function boot() {
   showLoading(true);
   try {
     const snap = await getDoc(settingsDoc());
-    if (snap.exists()) settings = {...settings,...snap.data()};
-  } catch(e) {
-    document.getElementById("fb-banner").style.display="block";
-  }
+    if (snap.exists()) settings = { ...settings, ...snap.data() };
+  } catch(e) { console.warn("Settings load err:", e.message); }
   updateHeader();
   loadSettingsInputs();
-  initMenu();
+  startMenuListener();
   startOrdersListener();
-  showLoading(false);
 }
 
 function showLoading(v) {
   document.getElementById("loading-overlay").style.display = v ? "flex" : "none";
 }
 
-/* ── REAL-TIME ORDERS ── */
-function startOrdersListener() {
-  if (unsubOrders) unsubOrders();
-  const q = query(ordersCol(), orderBy("createdAt","desc"));
-  unsubOrders = onSnapshot(q, snap => {
-    orders = snap.docs.map(d => ({firestoreId:d.id,...d.data()}));
-    if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
-  }, e => console.warn("Listener err:",e));
+/* ─── REAL-TIME MENU LISTENER ─── */
+function startMenuListener() {
+  if (unsubMenu) unsubMenu();
+  const q = query(menuCol(), orderBy("createdAt", "asc"));
+  unsubMenu = onSnapshot(q, snap => {
+    menuItems = snap.docs.map(d => ({ fsId: d.id, ...d.data() }));
+    renderMenuPage();
+    if (activeAdminTab === "menu") renderMenuManager();
+    showLoading(false);
+  }, e => { console.warn("Menu listener:", e); showLoading(false); });
 }
 
-/* ── NAV ── */
+/* ─── REAL-TIME ORDERS LISTENER ─── */
+function startOrdersListener() {
+  if (unsubOrders) unsubOrders();
+  const q = query(ordersCol(), orderBy("createdAt", "desc"));
+  unsubOrders = onSnapshot(q, snap => {
+    orders = snap.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+    if (document.getElementById("page-admin").classList.contains("active") && activeAdminTab !== "menu")
+      renderAdmin();
+  }, e => console.warn("Orders listener:", e));
+}
+
+/* ─── NAVIGATION ─── */
 window.switchPage = p => {
-  document.querySelectorAll(".page").forEach(el=>el.classList.remove("active"));
-  document.querySelectorAll(".nav-btn").forEach(el=>el.classList.remove("active"));
-  document.getElementById("page-"+p).classList.add("active");
-  document.getElementById("nav-"+p).classList.add("active");
-  if (p==="cart")  renderCart();
-  if (p==="admin") renderAdmin();
-  if (p==="setup") initSetupPage();
+  document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("page-" + p).classList.add("active");
+  document.getElementById("nav-" + p).classList.add("active");
+  if (p === "cart")  renderCart();
+  if (p === "admin") { renderAdmin(); }
+  if (p === "setup") initSetupPage();
 };
 
-/* ── MENU ── */
-function initMenu() {
-  const cats = ["All",...new Set(MENU_DATA.map(m=>m.cat))];
+/* ─── MENU PAGE ─── */
+function renderMenuPage() {
+  const cats = ["All", ...new Set(menuItems.map(m => m.cat).filter(Boolean))];
   document.getElementById("cat-row").innerHTML =
-    cats.map(c=>`<button class="cat-chip${c===activeCat?" active":""}" onclick="filterCat('${c}')">${c==="All"?"All":c}</button>`).join("");
+    cats.map(c => `<button class="cat-chip${c === activeCat ? " active" : ""}" onclick="filterCat('${c}')">${c}</button>`).join("");
   renderMenuItems();
 }
 
 window.filterCat = c => {
-  activeCat=c;
-  document.querySelectorAll(".cat-chip").forEach(b=>b.classList.remove("active"));
+  activeCat = c;
+  document.querySelectorAll(".cat-chip").forEach(b => b.classList.remove("active"));
   event.target.classList.add("active");
   renderMenuItems();
 };
 
 function renderMenuItems() {
-  const items = activeCat==="All" ? MENU_DATA : MENU_DATA.filter(m=>m.cat===activeCat);
-  let html="", lastCat="";
+  const items = activeCat === "All" ? menuItems : menuItems.filter(m => m.cat === activeCat);
+  if (items.length === 0) {
+    document.getElementById("menu-list").innerHTML =
+      `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text3)">
+        <div style="font-size:40px;margin-bottom:10px">☕</div>
+        <div style="font-size:14px;font-weight:600">No items yet</div>
+        <div style="font-size:12px;margin-top:4px">Go to Admin → Menu to add your first item</div>
+      </div>`;
+    updateCartFloat();
+    return;
+  }
+  let html = "", lastCat = "";
   items.forEach(item => {
-    if (activeCat==="All" && item.cat!==lastCat) {
-      html+=`<div class="cat-section-title">${item.cat}</div>`;
-      lastCat=item.cat;
+    if (activeCat === "All" && item.cat !== lastCat) {
+      html += `<div class="cat-section-title">${item.cat}</div>`;
+      lastCat = item.cat;
     }
-    const qty=getQty(item.id), has=qty>0;
-    html+=`<div class="menu-item">
-      <div class="item-emoji-box" style="${has?"border-color:var(--green);background:var(--green-light)":""}">${item.emoji}</div>
+    const qty = getQty(item.fsId), has = qty > 0;
+    const priceUSD = Number(item.priceUSD) || 0;
+    const priceKHR = item.priceKHR ? Number(item.priceKHR) : Math.round(priceUSD * KHR_RATE);
+    const imgHtml = item.photoURL
+      ? `<img src="${item.photoURL}" alt="${item.name}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;${has?"border-color:var(--green)":""}"/>`
+      : `<div class="item-emoji-box" style="${has?"border-color:var(--green);background:var(--green-light)":""}">${item.emoji || "☕"}</div>`;
+    html += `<div class="menu-item">
+      ${imgHtml}
       <div class="item-body">
         <div class="item-name">${item.name}</div>
         <div class="item-footer">
-          <div class="item-price">$${item.price.toFixed(2)}</div>
+          <div>
+            <div class="item-price">$${priceUSD.toFixed(2)}</div>
+            <div class="item-price-khr">${priceKHR.toLocaleString()}រ</div>
+          </div>
           <div class="qty-ctrl">
-            ${has?`<button class="qty-btn" onclick="changeQty(${item.id},-1)">&#x2212;</button><span class="qty-num">${qty}</span>`:""}
-            <button class="qty-btn${!has?" add":""}" onclick="changeQty(${item.id},1)">+</button>
+            ${has ? `<button class="qty-btn" onclick="changeQty('${item.fsId}',-1)">&#x2212;</button><span class="qty-num">${qty}</span>` : ""}
+            <button class="qty-btn${!has ? " add" : ""}" onclick="changeQty('${item.fsId}',1)">+</button>
           </div>
         </div>
       </div>
     </div>`;
   });
-  document.getElementById("menu-list").innerHTML=html;
+  document.getElementById("menu-list").innerHTML = html;
   updateCartFloat();
 }
 
-const getQty = id => { const c=cart.find(c=>c.id===id); return c?c.qty:0; };
+const getQty = id => { const c = cart.find(c => c.fsId === id); return c ? c.qty : 0; };
 
-window.changeQty = (id,delta) => {
-  const item=MENU_DATA.find(m=>m.id===id);
-  let ci=cart.find(c=>c.id===id);
-  if (!ci) { cart.push({...item,qty:0}); ci=cart[cart.length-1]; }
-  ci.qty=Math.max(0,ci.qty+delta);
-  if (ci.qty===0) cart=cart.filter(c=>c.id!==id);
+window.changeQty = (id, delta) => {
+  const item = menuItems.find(m => m.fsId === id);
+  if (!item) return;
+  let ci = cart.find(c => c.fsId === id);
+  if (!ci) { cart.push({ ...item, qty: 0 }); ci = cart[cart.length - 1]; }
+  ci.qty = Math.max(0, ci.qty + delta);
+  if (ci.qty === 0) cart = cart.filter(c => c.fsId !== id);
   renderMenuItems();
 };
 
 function updateCartFloat() {
-  const count=cart.reduce((s,c)=>s+c.qty,0);
-  const total=cart.reduce((s,c)=>s+c.price*c.qty,0);
-  const fl=document.getElementById("cart-float");
-  const badge=document.getElementById("nav-cart-badge");
-  if (count>0) {
-    fl.style.display="block";
-    document.getElementById("float-left").textContent=`🛒 View Cart (${count})`;
-    document.getElementById("float-right").textContent=`$${total.toFixed(2)}`;
-    badge.style.display="block"; badge.textContent=count;
-  } else { fl.style.display="none"; badge.style.display="none"; }
+  const count = cart.reduce((s, c) => s + c.qty, 0);
+  const total = cart.reduce((s, c) => s + (Number(c.priceUSD) || 0) * c.qty, 0);
+  const totalKHR = cart.reduce((s, c) => s + (c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0) * KHR_RATE)) * c.qty, 0);
+  const fl = document.getElementById("cart-float");
+  const badge = document.getElementById("nav-cart-badge");
+  if (count > 0) {
+    fl.style.display = "block";
+    document.getElementById("float-left").textContent = `🛒 View Cart (${count})`;
+    document.getElementById("float-right").textContent = `$${total.toFixed(2)}`;
+    badge.style.display = "block"; badge.textContent = count;
+  } else { fl.style.display = "none"; badge.style.display = "none"; }
 }
 
-/* ── CART ── */
+/* ─── CART ─── */
 function renderCart() {
-  const el=document.getElementById("cart-body");
-  if (cart.length===0) {
-    el.innerHTML=`<div class="cart-empty"><div class="empty-icon">🛒</div>
-      <h3>Cart is empty</h3><p>Add items from the menu</p>
+  const el = document.getElementById("cart-body");
+  if (cart.length === 0) {
+    el.innerHTML = `<div class="cart-empty"><div class="empty-icon">🛒</div>
+      <h3>Cart is empty</h3><p>Browse the menu and add items</p>
       <button class="btn btn-green" style="max-width:200px;margin:0 auto" onclick="switchPage('menu')">View Menu</button></div>`;
     return;
   }
-  const sub=cart.reduce((s,c)=>s+c.price*c.qty,0);
-  const tax=sub*(settings.tax/100);
-  const total=sub+tax;
-  el.innerHTML=`
+  const sub    = cart.reduce((s, c) => s + (Number(c.priceUSD)||0) * c.qty, 0);
+  const subKHR = cart.reduce((s, c) => s + (c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE)) * c.qty, 0);
+  const tax    = sub * (settings.tax / 100);
+  const total  = sub + tax;
+  const totalKHR = subKHR + Math.round(subKHR * settings.tax / 100);
+  el.innerHTML = `
     <div class="section-label" style="margin-top:4px">Your order · Table ${settings.table}</div>
-    ${cart.map(ci=>`<div class="cart-item">
-      <div class="cart-item-emoji">${ci.emoji}</div>
-      <div class="cart-item-info">
-        <div class="cart-item-name">${ci.name}</div>
-        <div class="cart-item-unit">$${ci.price.toFixed(2)} each</div>
-      </div>
-      <div class="qty-ctrl">
-        <button class="qty-btn" onclick="cartQty(${ci.id},-1)">&#x2212;</button>
-        <span class="qty-num">${ci.qty}</span>
-        <button class="qty-btn" onclick="cartQty(${ci.id},1)">+</button>
-      </div>
-      <div class="cart-item-subtotal">$${(ci.price*ci.qty).toFixed(2)}</div>
-    </div>`).join("")}
+    ${cart.map(ci => {
+      const usd = Number(ci.priceUSD)||0;
+      const khr = ci.priceKHR ? Number(ci.priceKHR) : Math.round(usd * KHR_RATE);
+      const img = ci.photoURL
+        ? `<img src="${ci.photoURL}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0"/>`
+        : `<div style="font-size:26px;flex-shrink:0">${ci.emoji||"☕"}</div>`;
+      return `<div class="cart-item">
+        ${img}
+        <div class="cart-item-info">
+          <div class="cart-item-name">${ci.name}</div>
+          <div class="cart-item-unit">$${usd.toFixed(2)} · ${khr.toLocaleString()}រ</div>
+        </div>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="cartQty('${ci.fsId}',-1)">&#x2212;</button>
+          <span class="qty-num">${ci.qty}</span>
+          <button class="qty-btn" onclick="cartQty('${ci.fsId}',1)">+</button>
+        </div>
+        <div class="cart-item-subtotal">
+          <div>$${(usd*ci.qty).toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--text3)">${(khr*ci.qty).toLocaleString()}រ</div>
+        </div>
+      </div>`;
+    }).join("")}
     <div class="order-note-wrap">
       <div class="order-note-label">Special requests / allergies</div>
-      <textarea class="order-note-input" id="order-note" rows="2" placeholder="e.g. no spicy, extra lime..."></textarea>
+      <textarea class="order-note-input" id="order-note" rows="2" placeholder="e.g. less sugar, no ice..."></textarea>
     </div>
     <div class="order-summary">
-      <div class="summary-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
-      <div class="summary-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>
+      <div class="summary-row"><span>Subtotal</span><span>$${sub.toFixed(2)} <span style="color:var(--text3);font-size:11px">/ ${subKHR.toLocaleString()}រ</span></span></div>
+      ${settings.tax > 0 ? `<div class="summary-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
       <hr class="summary-divider">
       <div class="summary-total"><span>Total</span><span>$${total.toFixed(2)}</span></div>
+      <div style="text-align:right;font-size:13px;color:var(--text3);margin-top:2px">${totalKHR.toLocaleString()} រៀល</div>
     </div>
     <div style="margin-top:12px">
-      <button class="btn btn-green" id="place-btn" onclick="placeOrder()">&#10003; Place Order</button>
-      <button class="btn btn-outline" onclick="switchPage('menu')">&#8592; Continue Ordering</button>
+      <button class="btn btn-green" id="place-btn" onclick="placeOrder()">✓ Place Order</button>
+      <button class="btn btn-outline" onclick="switchPage('menu')">← Continue Ordering</button>
     </div>`;
 }
 
-window.cartQty = (id,delta) => { changeQty(id,delta); renderCart(); updateCartFloat(); };
+window.cartQty = (id, delta) => { changeQty(id, delta); renderCart(); };
 
 window.placeOrder = async () => {
   if (!cart.length) return;
-  const btn=document.getElementById("place-btn");
-  if (btn) { btn.disabled=true; btn.textContent="Sending…"; }
-  const note=document.getElementById("order-note")?.value||"";
-  const sub=cart.reduce((s,c)=>s+c.price*c.qty,0);
-  const tax=sub*(settings.tax/100);
-  const order={table:settings.table,items:JSON.parse(JSON.stringify(cart)),note,
-    status:"pending",subtotal:sub,tax,total:sub+tax,time:new Date().toISOString(),paid:false};
+  const btn = document.getElementById("place-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  const note  = document.getElementById("order-note")?.value || "";
+  const sub   = cart.reduce((s, c) => s + (Number(c.priceUSD)||0) * c.qty, 0);
+  const subKHR = cart.reduce((s, c) => s + (c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE)) * c.qty, 0);
+  const tax   = sub * (settings.tax / 100);
+  const items = cart.map(c => ({
+    fsId: c.fsId, name: c.name, emoji: c.emoji||"", photoURL: c.photoURL||"",
+    priceUSD: Number(c.priceUSD)||0,
+    priceKHR: c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE),
+    qty: c.qty
+  }));
+  const order = { table: settings.table, items, note, status: "pending",
+    subtotalUSD: sub, subtotalKHR: subKHR, taxUSD: tax,
+    totalUSD: sub + tax, totalKHR: Math.round(subKHR * (1 + settings.tax/100)),
+    time: new Date().toISOString(), paid: false };
   try {
-    const ref=await addDoc(ordersCol(),{...order,createdAt:serverTimestamp()});
-    order.firestoreId=ref.id;
+    const ref = await addDoc(ordersCol(), { ...order, createdAt: serverTimestamp() });
+    order.firestoreId = ref.id;
     sendTelegramNewOrder(order);
-    cart=[]; updateCartFloat();
-    document.getElementById("cart-body").innerHTML=`
+    cart = []; updateCartFloat();
+    document.getElementById("cart-body").innerHTML = `
       <div class="confirm-wrap">
         <div class="confirm-icon">✅</div>
         <div class="confirm-title">Order Placed!</div>
-        <div class="confirm-sub">Table ${order.table} — sent to kitchen!</div>
+        <div class="confirm-sub">Table ${order.table} — sent to the kitchen!</div>
         <div class="confirm-btns">
           <button class="btn btn-green" onclick="switchPage('menu')">Back to Menu</button>
           <button class="btn btn-outline" onclick="showReceipt('${ref.id}')">View Receipt</button>
         </div>
       </div>`;
   } catch(e) {
-    if (btn) { btn.disabled=false; btn.textContent="Place Order"; }
-    toast("Error: "+e.message);
+    if (btn) { btn.disabled = false; btn.textContent = "Place Order"; }
+    toast("Error: " + e.message);
   }
 };
 
-/* ── ADMIN ── */
+/* ─── ADMIN ─── */
 window.adminTab = t => {
-  activeAdminTab=t;
-  document.querySelectorAll(".admin-tab").forEach((b,i)=>b.classList.toggle("active",["live","history","stats"][i]===t));
+  activeAdminTab = t;
+  document.querySelectorAll(".admin-tab").forEach((b,i) =>
+    b.classList.toggle("active", ["live","history","stats","menu"][i] === t));
   renderAdmin();
 };
 
 function renderAdmin() {
-  const el=document.getElementById("admin-body");
-  if (activeAdminTab==="stats") { renderStats(el); return; }
-  const list = activeAdminTab==="live" ? orders.filter(o=>!o.paid) : orders.filter(o=>o.paid);
+  const el = document.getElementById("admin-body");
+  if (activeAdminTab === "stats") { renderStats(el); return; }
+  if (activeAdminTab === "menu")  { renderMenuManager(); return; }
+  const list = activeAdminTab === "live"
+    ? orders.filter(o => !o.paid)
+    : orders.filter(o =>  o.paid);
   if (!list.length) {
-    el.innerHTML=`<div class="empty-admin">
+    el.innerHTML = `<div class="empty-admin">
       <div style="font-size:40px">${activeAdminTab==="live"?"🍳":"📋"}</div>
-      <div>${activeAdminTab==="live"?"No active orders — waiting for customers":"No paid orders yet"}</div>
+      <div style="margin-top:10px;font-size:13px">${activeAdminTab==="live"?"No active orders":"No paid orders yet"}</div>
     </div>`;
     return;
   }
-  el.innerHTML=list.map(o=>{
-    const t=new Date(o.time);
-    const ts=t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-    const ds=t.toLocaleDateString([],{month:"short",day:"numeric"});
-    const stMap={pending:"st-pending",preparing:"st-preparing",ready:"st-ready",paid:"st-paid"};
-    const st=o.paid?"paid":o.status;
+  el.innerHTML = list.map(o => {
+    const t  = new Date(o.time);
+    const ts = t.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+    const ds = t.toLocaleDateString([], { month:"short", day:"numeric" });
+    const stMap = { pending:"st-pending", preparing:"st-preparing", ready:"st-ready", paid:"st-paid" };
+    const st = o.paid ? "paid" : o.status;
+    const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0) * KHR_RATE);
     return `<div class="order-card">
       <div class="order-card-header">
         <div>
@@ -277,14 +323,17 @@ function renderAdmin() {
         <span class="status-pill ${stMap[st]}">${st.charAt(0).toUpperCase()+st.slice(1)}</span>
       </div>
       <div class="order-card-items">${o.items.map(i=>`${i.qty}× ${i.name}`).join(" · ")}</div>
-      ${o.note?`<div class="order-card-note">📝 ${o.note}</div>`:""}
+      ${o.note ? `<div class="order-card-note">📝 ${o.note}</div>` : ""}
       <div class="order-card-footer">
-        <div class="order-card-total">$${o.total.toFixed(2)}</div>
+        <div>
+          <div class="order-card-total">$${(o.totalUSD||o.total||0).toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--text3)">${totalKHR.toLocaleString()}រ</div>
+        </div>
         <div class="order-action-row">
-          ${!o.paid&&o.status==="pending"?`<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','preparing')">👨‍🍳 Preparing</button>`:""}
-          ${!o.paid&&o.status==="preparing"?`<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','ready')">✅ Ready</button>`:""}
-          ${!o.paid?`<button class="order-action-btn green" onclick="markPaid('${o.firestoreId}')">💰 Mark Paid</button>`:""}
-          <button class="order-action-btn" onclick="showReceipt('${o.firestoreId}')">🖨️ Receipt</button>
+          ${!o.paid && o.status==="pending"   ? `<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','preparing')">👨‍🍳 Preparing</button>` : ""}
+          ${!o.paid && o.status==="preparing" ? `<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','ready')">✅ Ready</button>` : ""}
+          ${!o.paid ? `<button class="order-action-btn green" onclick="markPaid('${o.firestoreId}')">💰 Mark Paid</button>` : ""}
+          <button class="order-action-btn" onclick="showReceipt('${o.firestoreId}')">🖨️</button>
         </div>
       </div>
     </div>`;
@@ -292,77 +341,319 @@ function renderAdmin() {
 }
 
 function renderStats(el) {
-  const paid=orders.filter(o=>o.paid);
-  const rev=paid.reduce((s,o)=>s+o.total,0);
-  const counts={};
-  orders.forEach(o=>o.items.forEach(i=>{counts[i.name]=(counts[i.name]||0)+i.qty;}));
-  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  el.innerHTML=`
+  const paid = orders.filter(o => o.paid);
+  const rev  = paid.reduce((s, o) => s + (o.totalUSD||o.total||0), 0);
+  const revKHR = paid.reduce((s, o) => s + (o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE)), 0);
+  const counts = {};
+  orders.forEach(o => o.items.forEach(i => { counts[i.name] = (counts[i.name]||0) + i.qty; }));
+  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
+  el.innerHTML = `
     <div class="stats-grid">
       <div class="stat-box"><div class="stat-num">${orders.length}</div><div class="stat-label">Orders</div></div>
       <div class="stat-box"><div class="stat-num">${paid.length}</div><div class="stat-label">Paid</div></div>
       <div class="stat-box"><div class="stat-num">$${rev.toFixed(0)}</div><div class="stat-label">Revenue</div></div>
     </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Total Revenue (KHR)</div>
+      <div style="font-size:20px;font-weight:700;color:var(--green)">${revKHR.toLocaleString()} រៀល</div>
+    </div>
     <div class="admin-section-title">Top Items</div>
-    ${top.length?top.map(([n,q])=>`<div class="top-item-row"><span>${n}</span><span class="top-item-count">${q}×</span></div>`).join(""):"<div style='color:var(--text3);font-size:13px'>No orders yet</div>"}
-    <div class="admin-section-title" style="margin-top:20px">Danger Zone</div>
-    <button class="sm-btn" style="color:var(--red);border-color:var(--red)" onclick="clearHistory()">🗑️ Delete All Orders from Firestore</button>`;
+    ${top.length ? top.map(([n,q])=>`<div class="top-item-row"><span>${n}</span><span class="top-item-count">${q}×</span></div>`).join("") : "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No orders yet</div>"}
+    <div class="admin-section-title" style="margin-top:20px">Actions</div>
+    <button class="sm-btn" style="color:var(--red);border-color:var(--red)" onclick="clearAllOrders()">🗑️ Delete All Orders</button>`;
 }
 
-window.setStatus = async (id,status) => {
-  try { await updateDoc(doc(db,"orders",id),{status}); }
+window.setStatus = async (id, status) => {
+  try { await updateDoc(doc(db,"orders",id), { status }); }
   catch(e) { toast("Error: "+e.message); }
 };
 
 window.markPaid = async id => {
   try {
-    await updateDoc(doc(db,"orders",id),{paid:true,status:"paid",paidAt:new Date().toISOString()});
-    const o=orders.find(o=>o.firestoreId===id);
-    if (o) sendTelegramPayment({...o,firestoreId:id});
+    await updateDoc(doc(db,"orders",id), { paid:true, status:"paid", paidAt:new Date().toISOString() });
+    const o = orders.find(o => o.firestoreId === id);
+    if (o) sendTelegramPayment({ ...o, firestoreId:id });
     toast("✅ Payment recorded");
   } catch(e) { toast("Error: "+e.message); }
 };
 
-window.clearHistory = async () => {
-  if (!confirm("Delete ALL orders from Firestore? Cannot be undone.")) return;
+window.clearAllOrders = async () => {
+  if (!confirm("Delete ALL orders? Cannot be undone.")) return;
   try {
-    const snap=await getDocs(ordersCol());
-    await Promise.all(snap.docs.map(d=>deleteDoc(d.ref)));
+    const snap = await getDocs(ordersCol());
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
     toast("All orders deleted");
   } catch(e) { toast("Error: "+e.message); }
 };
 
-/* ── RECEIPT ── */
+/* ─── MENU MANAGER ─── */
+function renderMenuManager() {
+  const el = document.getElementById("admin-body");
+  if (activeMenuTab === "add" || (activeMenuTab === "edit" && editItemId)) {
+    renderMenuForm(el); return;
+  }
+  // items list
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:var(--text)">${menuItems.length} Menu Items</div>
+      <button class="btn-add-item" onclick="openAddForm()">+ Add Item</button>
+    </div>
+    ${menuItems.length === 0
+      ? `<div class="empty-admin"><div style="font-size:40px">🍽️</div><div style="margin-top:10px;font-size:13px">No items yet. Add your first menu item!</div></div>`
+      : menuItems.map(item => {
+          const usd = Number(item.priceUSD)||0;
+          const khr = item.priceKHR ? Number(item.priceKHR) : Math.round(usd * KHR_RATE);
+          const img = item.photoURL
+            ? `<img src="${item.photoURL}" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--border)"/>`
+            : `<div style="width:52px;height:52px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">${item.emoji||"☕"}</div>`;
+          return `<div class="menu-mgr-row">
+            ${img}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--text)">${item.name}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:1px">${item.cat||""}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-top:3px">$${usd.toFixed(2)} · ${khr.toLocaleString()}រ</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="icon-btn edit" onclick="openEditForm('${item.fsId}')">✏️</button>
+              <button class="icon-btn del"  onclick="deleteMenuItem('${item.fsId}','${(item.photoURL||"").replace(/'/g,"")}')" >🗑️</button>
+            </div>
+          </div>`;
+        }).join("")
+    }`;
+}
+
+window.openAddForm = () => {
+  activeMenuTab = "add"; editItemId = null;
+  renderMenuManager();
+};
+
+window.openEditForm = id => {
+  activeMenuTab = "edit"; editItemId = id;
+  renderMenuManager();
+};
+
+window.cancelMenuForm = () => {
+  activeMenuTab = "items"; editItemId = null;
+  renderMenuManager();
+};
+
+function renderMenuForm(el) {
+  const item = editItemId ? menuItems.find(m => m.fsId === editItemId) : null;
+  const usd = item ? Number(item.priceUSD)||0 : "";
+  const khr = item ? (item.priceKHR ? Number(item.priceKHR) : Math.round((Number(item.priceUSD)||0)*KHR_RATE)) : "";
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button class="icon-btn" onclick="cancelMenuForm()" style="font-size:18px">←</button>
+      <div style="font-size:15px;font-weight:700">${item ? "Edit Item" : "Add New Item"}</div>
+    </div>
+
+    <!-- Photo upload -->
+    <div class="form-group">
+      <label class="form-label">Photo</label>
+      <div id="photo-preview" style="margin-bottom:8px">
+        ${item && item.photoURL
+          ? `<img src="${item.photoURL}" id="preview-img" style="width:100%;height:160px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)"/>`
+          : `<div id="preview-placeholder" style="width:100%;height:120px;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3)">
+               <span style="font-size:32px">📷</span>
+               <span style="font-size:12px">Tap to upload photo</span>
+             </div>`}
+      </div>
+      <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+      <button class="sm-btn" onclick="document.getElementById('photo-input').click()" style="width:100%;justify-content:center">
+        📷 ${item && item.photoURL ? "Change Photo" : "Upload Photo"}
+      </button>
+      ${item && item.photoURL ? `<button class="sm-btn" onclick="removePhoto()" style="width:100%;justify-content:center;margin-top:6px;color:var(--red);border-color:var(--red)">🗑️ Remove Photo</button>` : ""}
+      <div id="upload-progress" style="display:none;margin-top:8px;font-size:12px;color:var(--text3)">Uploading…</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Item Name *</label>
+      <input class="form-input" type="text" id="fi-name" value="${item ? item.name : ""}" placeholder="e.g. Iced Latte">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category *</label>
+      <input class="form-input" type="text" id="fi-cat" value="${item ? item.cat||"" : ""}" placeholder="e.g. Coffee, Food, Drinks" list="cat-list">
+      <datalist id="cat-list">
+        ${[...new Set(menuItems.map(m=>m.cat).filter(Boolean))].map(c=>`<option value="${c}">`).join("")}
+      </datalist>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Emoji (fallback if no photo)</label>
+      <input class="form-input" type="text" id="fi-emoji" value="${item ? item.emoji||"" : ""}" placeholder="☕" maxlength="4">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Price USD *</label>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px">$</span>
+          <input class="form-input" type="number" id="fi-usd" value="${usd}" placeholder="0.00" step="0.01" min="0" style="padding-left:22px" oninput="autoKHR()">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Price KHR</label>
+        <div style="position:relative">
+          <input class="form-input" type="number" id="fi-khr" value="${khr}" placeholder="0" step="100" min="0" style="padding-right:22px">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px">រ</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:12px">USD auto-converts to KHR (rate: 1$ = ${KHR_RATE.toLocaleString()}រ). You can override KHR manually.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn btn-outline" onclick="cancelMenuForm()">Cancel</button>
+      <button class="btn btn-green" id="save-item-btn" onclick="saveMenuItem()">
+        ${item ? "Save Changes" : "Add to Menu"}
+      </button>
+    </div>`;
+
+  // hook photo preview area click
+  const placeholder = document.getElementById("preview-placeholder");
+  if (placeholder) placeholder.onclick = () => document.getElementById("photo-input").click();
+}
+
+window.autoKHR = () => {
+  const usd = parseFloat(document.getElementById("fi-usd").value) || 0;
+  document.getElementById("fi-khr").value = Math.round(usd * KHR_RATE);
+};
+
+window.previewPhoto = input => {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById("photo-preview").innerHTML =
+      `<img src="${e.target.result}" id="preview-img" style="width:100%;height:160px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)"/>`;
+  };
+  reader.readAsDataURL(input.files[0]);
+};
+
+window.removePhoto = () => {
+  document.getElementById("photo-preview").innerHTML =
+    `<div id="preview-placeholder" style="width:100%;height:120px;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3)" onclick="document.getElementById('photo-input').click()">
+      <span style="font-size:32px">📷</span><span style="font-size:12px">Tap to upload photo</span>
+     </div>`;
+  document.getElementById("photo-input").value = "";
+};
+
+window.saveMenuItem = async () => {
+  const name  = document.getElementById("fi-name").value.trim();
+  const cat   = document.getElementById("fi-cat").value.trim();
+  const emoji = document.getElementById("fi-emoji").value.trim();
+  const usd   = parseFloat(document.getElementById("fi-usd").value) || 0;
+  const khr   = parseInt(document.getElementById("fi-khr").value)   || Math.round(usd * KHR_RATE);
+  if (!name || !cat) { toast("Name and Category are required"); return; }
+  if (usd <= 0)      { toast("Price USD must be greater than 0"); return; }
+
+  const btn = document.getElementById("save-item-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+  let photoURL = "";
+  // If editing, keep existing photo unless changed
+  if (editItemId) {
+    const existing = menuItems.find(m => m.fsId === editItemId);
+    photoURL = existing?.photoURL || "";
+  }
+
+  // Upload new photo if selected
+  const fileInput = document.getElementById("photo-input");
+  if (fileInput.files[0]) {
+    try {
+      const progress = document.getElementById("upload-progress");
+      if (progress) progress.style.display = "block";
+      const file   = fileInput.files[0];
+      const ext    = file.name.split(".").pop();
+      const path   = `menu/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const storRef = sRef(storage, path);
+      await uploadBytes(storRef, file);
+      photoURL = await getDownloadURL(storRef);
+      if (progress) progress.style.display = "none";
+    } catch(e) {
+      toast("Photo upload failed: " + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+      return;
+    }
+  }
+
+  // If photo was removed (placeholder showing, no file selected, had a photo)
+  const previewImg = document.getElementById("preview-img");
+  if (!previewImg && !fileInput.files[0] && editItemId) {
+    photoURL = ""; // cleared
+  }
+
+  const data = { name, cat, emoji, priceUSD: usd, priceKHR: khr, photoURL };
+
+  try {
+    if (editItemId) {
+      await updateDoc(doc(db, "menu", editItemId), data);
+      toast("✅ Item updated!");
+    } else {
+      await addDoc(menuCol(), { ...data, createdAt: serverTimestamp() });
+      toast("✅ Item added to menu!");
+    }
+    activeMenuTab = "items"; editItemId = null;
+    renderMenuManager();
+  } catch(e) {
+    toast("Save failed: " + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+  }
+};
+
+window.deleteMenuItem = async (id, photoURL) => {
+  if (!confirm("Delete this menu item?")) return;
+  try {
+    await deleteDoc(doc(db, "menu", id));
+    // Also delete photo from storage if exists
+    if (photoURL) {
+      try { await deleteObject(sRef(storage, photoURL)); } catch(e) {}
+    }
+    toast("Item deleted");
+    renderMenuManager();
+  } catch(e) { toast("Delete failed: " + e.message); }
+};
+
+/* ─── RECEIPT ─── */
 window.showReceipt = id => {
-  // id might come from a recently placed order (firestoreId) or the list
-  const o=orders.find(o=>o.firestoreId===id);
-  if (!o) { toast("Order not found yet — try again in a second"); return; }
-  activeReceiptId=id;
-  const t=new Date(o.time);
-  document.getElementById("r-name").textContent=settings.name;
-  document.getElementById("r-addr").textContent=settings.addr;
-  document.getElementById("r-meta").textContent=
+  const o = orders.find(o => o.firestoreId === id);
+  if (!o) { toast("Order not found, try again"); return; }
+  activeReceiptId = id;
+  const t = new Date(o.time);
+  document.getElementById("r-name").textContent = settings.name;
+  document.getElementById("r-addr").textContent = settings.addr;
+  document.getElementById("r-meta").textContent =
     `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} · Table ${o.table}`;
-  document.getElementById("r-items").innerHTML=
-    o.items.map(i=>`<div class="receipt-order-row"><span>${i.qty}× ${i.name}</span><span>$${(i.price*i.qty).toFixed(2)}</span></div>`).join("");
-  document.getElementById("r-totals").innerHTML=`
+  const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
+  document.getElementById("r-items").innerHTML =
+    o.items.map(i => {
+      const khr = i.priceKHR || Math.round((i.priceUSD||0)*KHR_RATE);
+      return `<div class="receipt-order-row">
+        <span>${i.qty}× ${i.name}</span>
+        <span>$${((i.priceUSD||0)*i.qty).toFixed(2)} <span style="font-size:10px;color:#999">/ ${(khr*i.qty).toLocaleString()}រ</span></span>
+      </div>`;
+    }).join("");
+  const sub = o.subtotalUSD||o.subtotal||0;
+  const subKHR = o.subtotalKHR || Math.round(sub*KHR_RATE);
+  const tax = o.taxUSD||o.tax||0;
+  const total = o.totalUSD||o.total||0;
+  document.getElementById("r-totals").innerHTML = `
     <hr class="receipt-divider">
-    <div class="receipt-order-row"><span>Subtotal</span><span>$${o.subtotal.toFixed(2)}</span></div>
-    <div class="receipt-order-row"><span>Tax (${settings.tax}%)</span><span>$${o.tax.toFixed(2)}</span></div>
-    <div class="receipt-order-row total-row"><span>TOTAL</span><span>$${o.total.toFixed(2)}</span></div>
-    ${o.paid?`<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">PAID</span></div>`
-            :`<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:600">UNPAID</div>`}`;
+    <div class="receipt-order-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+    ${tax > 0 ? `<div class="receipt-order-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
+    <div class="receipt-order-row total-row"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
+    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>In KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>
+    ${o.paid
+      ? `<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">PAID</span></div>`
+      : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:600">UNPAID</div>`}`;
   document.getElementById("receipt-modal").classList.add("open");
 };
 
 window.closeReceipt = () => document.getElementById("receipt-modal").classList.remove("open");
 
 window.printReceipt = () => {
-  const o=orders.find(o=>o.firestoreId===activeReceiptId);
+  const o = orders.find(o => o.firestoreId === activeReceiptId);
   if (!o) return;
-  const t=new Date(o.time);
-  const ts=`${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`;
-  const w=window.open("","_blank","width=400,height=600");
+  const t  = new Date(o.time);
+  const ts = `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`;
+  const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
+  const w = window.open("","_blank","width=400,height=640");
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;max-width:300px;margin:0 auto;padding:12px}
 .c{text-align:center}.n{font-size:18px;font-weight:bold}.d{border:none;border-top:1px dashed #999;margin:10px 0}
@@ -373,83 +664,85 @@ window.printReceipt = () => {
 <div style="font-size:11px;color:#666;margin-top:3px">${settings.addr}</div>
 <div style="font-size:11px;margin-top:4px">${ts} · Table ${o.table}</div></div>
 <hr class="d">
-${o.items.map(i=>`<div class="r"><span>${i.qty}x ${i.name}</span><span>$${(i.price*i.qty).toFixed(2)}</span></div>`).join("")}
+${o.items.map(i=>`<div class="r"><span>${i.qty}x ${i.name}</span><span>$${((i.priceUSD||0)*i.qty).toFixed(2)}</span></div>`).join("")}
 <hr class="d">
-<div class="r"><span>Subtotal</span><span>$${o.subtotal.toFixed(2)}</span></div>
-<div class="r"><span>Tax ${settings.tax}%</span><span>$${o.tax.toFixed(2)}</span></div>
-<div class="r tot"><span>TOTAL</span><span>$${o.total.toFixed(2)}</span></div>
+<div class="r"><span>Subtotal</span><span>$${(o.subtotalUSD||o.subtotal||0).toFixed(2)}</span></div>
+${(o.taxUSD||0)>0?`<div class="r"><span>Tax ${settings.tax}%</span><span>$${(o.taxUSD||0).toFixed(2)}</span></div>`:""}
+<div class="r tot"><span>TOTAL</span><span>$${(o.totalUSD||o.total||0).toFixed(2)}</span></div>
+<div class="r" style="font-size:11px;color:#666"><span>KHR</span><span>${totalKHR.toLocaleString()} រ</span></div>
 ${o.paid?'<div class="c"><span class="paid">PAID</span></div>':""}
 ${o.note?`<div style="margin-top:10px;font-size:11px;color:#666">Note: ${o.note}</div>`:""}
-<div class="foot">Thank you! Please come again</div>
+<div class="foot">${settings.name}<br>Thank you! Please come again 🙏</div>
 <script>window.onload=function(){window.print();setTimeout(()=>window.close(),800)}<\/script>
 </body></html>`);
   w.document.close();
   if (btDevice) sendToBluetooth(o);
 };
 
-/* ── TELEGRAM ── */
+/* ─── TELEGRAM ─── */
 async function getTgCfg() {
-  const t=document.getElementById("tg-token")?.value.trim();
-  const c=document.getElementById("tg-chat")?.value.trim();
-  if (t&&c) return {token:t,chat:c};
-  try { const s=await getDoc(tgDoc()); if(s.exists()) return s.data(); } catch(e) {}
+  const t = document.getElementById("tg-token")?.value.trim();
+  const c = document.getElementById("tg-chat")?.value.trim();
+  if (t && c) return { token:t, chat:c };
+  try { const s = await getDoc(tgDoc()); if (s.exists()) return s.data(); } catch(e) {}
   return null;
 }
 
 async function sendTelegramNewOrder(order) {
-  const cfg=await getTgCfg(); if(!cfg?.token||!cfg?.chat) return;
-  const ts=new Date(order.time).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  const msg=[`🆕 NEW ORDER`,`📍 Table ${order.table}  ·  ⏰ ${ts}`,"",
-    order.items.map(i=>`  • ${i.qty}x ${i.name}  —  $${(i.price*i.qty).toFixed(2)}`).join("\n"),
-    order.note?`\n📝 ${order.note}`:"","",`💰 Total: $${order.total.toFixed(2)}`].join("\n");
+  const cfg = await getTgCfg(); if (!cfg?.token||!cfg?.chat) return;
+  const ts  = new Date(order.time).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  const msg = [`🆕 NEW ORDER`,`📍 Table ${order.table}  ·  ⏰ ${ts}`,"",
+    order.items.map(i=>`  • ${i.qty}x ${i.name}  —  $${((i.priceUSD||0)*i.qty).toFixed(2)}`).join("\n"),
+    order.note?`\n📝 ${order.note}`:"","",
+    `💰 Total: $${(order.totalUSD||order.total||0).toFixed(2)} / ${(order.totalKHR||0).toLocaleString()}រ`].join("\n");
   try { await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,
     {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:cfg.chat,text:msg})}); } catch(e){}
 }
 
 async function sendTelegramPayment(order) {
-  const cfg=await getTgCfg(); if(!cfg?.token||!cfg?.chat) return;
-  const msg=[`✅ PAYMENT RECEIVED`,`📋 Table ${order.table}`,`💵 $${order.total.toFixed(2)} — PAID`,
+  const cfg = await getTgCfg(); if (!cfg?.token||!cfg?.chat) return;
+  const msg = [`✅ PAYMENT RECEIVED`,`📋 Table ${order.table}`,
+    `💵 $${(order.totalUSD||order.total||0).toFixed(2)} / ${(order.totalKHR||0).toLocaleString()}រ — PAID`,
     `⏰ ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`].join("\n");
   try { await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,
     {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:cfg.chat,text:msg})}); } catch(e){}
 }
 
 window.saveTelegram = async () => {
-  const token=document.getElementById("tg-token").value.trim();
-  const chat=document.getElementById("tg-chat").value.trim();
-  try { await setDoc(tgDoc(),{token,chat}); toast("✅ Telegram config saved to Firestore"); }
+  const token = document.getElementById("tg-token").value.trim();
+  const chat  = document.getElementById("tg-chat").value.trim();
+  try { await setDoc(tgDoc(),{token,chat}); toast("✅ Telegram saved to Firestore"); }
   catch(e) { toast("Save failed: "+e.message); }
 };
 
 window.testTelegram = async () => {
-  const token=document.getElementById("tg-token").value.trim();
-  const chat=document.getElementById("tg-chat").value.trim();
-  const alertEl=document.getElementById("tg-alert");
+  const token   = document.getElementById("tg-token").value.trim();
+  const chat    = document.getElementById("tg-chat").value.trim();
+  const alertEl = document.getElementById("tg-alert");
   if (!token||!chat) { showAlert(alertEl,false,"Enter bot token and chat ID first"); return; }
   try {
     await setDoc(tgDoc(),{token,chat});
-    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`,
       {method:"POST",headers:{"Content-Type":"application/json"},
-       body:JSON.stringify({chat_id:chat,text:"✅ Restaurant alerts connected!\nYou will receive order & payment notifications here."})});
-    const d=await r.json();
-    showAlert(alertEl,d.ok,d.ok?"Test sent! Check your Telegram.":(d.description||"Failed — check token & chat ID"));
-  } catch(e) { showAlert(alertEl,false,"Network error: "+e.message); }
+       body:JSON.stringify({chat_id:chat,text:"✅ Blue Bean Coffee alerts connected!\nOrders & payments will appear here."})});
+    const d = await r.json();
+    showAlert(alertEl,d.ok,d.ok?"Test sent! Check Telegram.":(d.description||"Failed"));
+  } catch(e) { showAlert(alertEl,false,"Error: "+e.message); }
 };
 
 function showAlert(el,ok,msg) {
-  el.style.display="flex";
-  el.className="alert-box "+(ok?"alert-ok":"alert-err");
+  el.style.display="flex"; el.className="alert-box "+(ok?"alert-ok":"alert-err");
   el.innerHTML=`<svg viewBox="0 0 24 24"><polyline points="${ok?"20 6 9 17 4 12":"18 6 6 18 6 6 18 18"}"/></svg><span>${msg}</span>`;
 }
 
-/* ── BLUETOOTH ── */
+/* ─── BLUETOOTH ─── */
 window.connectBluetooth = async () => {
-  if (!navigator.bluetooth) { document.getElementById("bt-status").textContent="Web Bluetooth needs Chrome on desktop/Android."; return; }
+  if (!navigator.bluetooth) { document.getElementById("bt-status").textContent="Chrome required."; return; }
   try {
-    btDevice=await navigator.bluetooth.requestDevice({acceptAllDevices:true,
+    btDevice = await navigator.bluetooth.requestDevice({acceptAllDevices:true,
       optionalServices:["000018f0-0000-1000-8000-00805f9b34fb"]});
     document.getElementById("bt-btn-label").textContent=(btDevice.name||"Printer")+" ✓";
-    document.getElementById("bt-status").innerHTML=`<span style="color:var(--green-dark);font-weight:600">✓ Connected to ${btDevice.name||"printer"}</span>`;
+    document.getElementById("bt-status").innerHTML=`<span style="color:var(--green-dark);font-weight:600">✓ ${btDevice.name||"Printer"} connected</span>`;
     toast("Printer connected!");
   } catch(e) { document.getElementById("bt-status").textContent="Not connected: "+e.message; }
 };
@@ -460,16 +753,18 @@ async function sendToBluetooth(order) {
     const server=await btDevice.gatt.connect();
     const svc=await server.getPrimaryService("000018f0-0000-1000-8000-00805f9b34fb");
     const ch=await svc.getCharacteristic("00002af1-0000-1000-8000-00805f9b34fb");
+    const totalKHR = order.totalKHR || Math.round((order.totalUSD||order.total||0)*KHR_RATE);
     const lines=[settings.name,settings.addr,"",`Table ${order.table}`,new Date(order.time).toLocaleString(),"",
-      ...order.items.map(i=>`${i.qty}x ${i.name}  $${(i.price*i.qty).toFixed(2)}`),
-      "","Subtotal: $"+order.subtotal.toFixed(2),"Tax: $"+order.tax.toFixed(2),
-      "TOTAL: $"+order.total.toFixed(2),order.paid?"PAID":"UNPAID","","Thank you!"].join("\r\n");
+      ...order.items.map(i=>`${i.qty}x ${i.name}  $${((i.priceUSD||0)*i.qty).toFixed(2)}`),
+      "","Total: $"+(order.totalUSD||order.total||0).toFixed(2),
+      "KHR: "+totalKHR.toLocaleString()+" រ",
+      order.paid?"PAID":"UNPAID","","Thank you!"].join("\r\n");
     const data=new TextEncoder().encode(lines+"\n\n\n");
     for(let i=0;i<data.length;i+=100) await ch.writeValue(data.slice(i,i+100));
   } catch(e) { console.warn("BT:",e.message); }
 }
 
-/* ── QR CODE ── */
+/* ─── QR ─── */
 function initQR() {
   if (!document.getElementById("table-grid")) return;
   document.getElementById("table-grid").innerHTML=
@@ -478,25 +773,21 @@ function initQR() {
       .join("");
   drawQR(activeQRTable);
 }
-
 window.selectQRTable = n => {
   activeQRTable=n;
   document.getElementById("qr-table-num").textContent=n;
   document.querySelectorAll(".table-grid-btn").forEach((b,i)=>b.classList.toggle("active",i+1===n));
   drawQR(n);
 };
-
 function drawQR(table) {
-  const canvas=document.getElementById("qr-canvas");
-  if (!canvas) return;
+  const canvas=document.getElementById("qr-canvas"); if(!canvas)return;
   const ctx=canvas.getContext("2d");
   ctx.fillStyle="#fff"; ctx.fillRect(0,0,200,200);
   const mods=buildQRMods(`TABLE:${table}:${settings.name}`);
-  const N=mods.length, cell=Math.floor(188/N), off=Math.floor((200-N*cell)/2);
+  const N=mods.length,cell=Math.floor(188/N),off=Math.floor((200-N*cell)/2);
   ctx.fillStyle="#000";
   for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(mods[r][c]) ctx.fillRect(off+c*cell,off+r*cell,cell,cell);
 }
-
 function buildQRMods(text) {
   const N=29,grid=Array.from({length:N},()=>Array(N).fill(false));
   let seed=text.split("").reduce((a,c)=>((a<<5)-a+c.charCodeAt(0))|0,5381);
@@ -515,57 +806,53 @@ function buildQRMods(text) {
   });
   return grid;
 }
-
 window.downloadQR = () => {
   const c=document.getElementById("qr-canvas"),l=document.createElement("a");
   l.download=`qr-table-${activeQRTable}.png`; l.href=c.toDataURL("image/png"); l.click();
-  toast(`QR for Table ${activeQRTable} downloaded`);
+  toast(`QR Table ${activeQRTable} downloaded`);
 };
 
-/* ── SETTINGS ── */
+/* ─── SETTINGS ─── */
 function loadSettingsInputs() {
-  const el=id=>document.getElementById(id);
+  const el = id => document.getElementById(id);
   if(el("settings-name"))  el("settings-name").value  = settings.name;
   if(el("settings-addr"))  el("settings-addr").value  = settings.addr;
   if(el("settings-table")) el("settings-table").value = settings.table;
   if(el("settings-tax"))   el("settings-tax").value   = settings.tax;
 }
-
 window.saveSettings = async () => {
   settings.name  = document.getElementById("settings-name").value.trim()  || settings.name;
   settings.addr  = document.getElementById("settings-addr").value.trim()  || settings.addr;
-  settings.table = parseInt(document.getElementById("settings-table").value)||settings.table;
-  settings.tax   = parseFloat(document.getElementById("settings-tax").value)||settings.tax;
-  try { await setDoc(settingsDoc(),settings); updateHeader(); toast("✅ Settings saved to Firestore"); }
+  settings.table = parseInt(document.getElementById("settings-table").value)  || settings.table;
+  settings.tax   = parseFloat(document.getElementById("settings-tax").value)  || 0;
+  try { await setDoc(settingsDoc(),settings); updateHeader(); toast("✅ Settings saved"); }
   catch(e) { toast("Save failed: "+e.message); }
 };
-
 function updateHeader() {
   document.getElementById("header-name").textContent  = settings.name;
   document.getElementById("header-sub").textContent   = settings.addr;
-  document.getElementById("header-table").textContent = "Table "+settings.table;
+  document.getElementById("header-table").textContent = "Table " + settings.table;
 }
-
 async function initSetupPage() {
   loadSettingsInputs();
   try {
-    const snap=await getDoc(tgDoc());
+    const snap = await getDoc(tgDoc());
     if (snap.exists()) {
-      const d=snap.data();
-      if(document.getElementById("tg-token")) document.getElementById("tg-token").value=d.token||"";
-      if(document.getElementById("tg-chat"))  document.getElementById("tg-chat").value=d.chat||"";
+      const d = snap.data();
+      if(document.getElementById("tg-token")) document.getElementById("tg-token").value = d.token||"";
+      if(document.getElementById("tg-chat"))  document.getElementById("tg-chat").value  = d.chat||"";
     }
   } catch(e){}
   initQR();
 }
 
-/* ── TOAST ── */
+/* ─── TOAST ─── */
 let toastTimer;
 window.toast = msg => {
-  const el=document.getElementById("toast");
-  el.textContent=msg; el.classList.add("show");
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>el.classList.remove("show"),2600);
+  toastTimer = setTimeout(()=>el.classList.remove("show"), 2800);
 };
 
 document.getElementById("receipt-modal").addEventListener("click",function(e){if(e.target===this)closeReceipt();});
@@ -589,7 +876,7 @@ input,textarea{font-family:inherit}
   --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.04);
   --shadow-lg:0 4px 16px rgba(0,0,0,.12);
 }
-.app-wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative}
+.app-wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
 
 /* Loading */
 #loading-overlay{position:fixed;inset:0;background:#f5f5f0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
@@ -598,12 +885,12 @@ input,textarea{font-family:inherit}
 
 /* Header */
 .top-header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
-.restaurant-icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--green-dark));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.restaurant-name{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.restaurant-icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#1D9E75,#0F6E56);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.restaurant-name{font-size:16px;font-weight:700;letter-spacing:-.3px}
 .restaurant-sub{font-size:12px;color:var(--text3);margin-top:1px}
 .table-pill{margin-left:auto;background:var(--green-light);color:var(--green-text);font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0}
 
-/* Bottom Nav */
+/* Nav */
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom)}
 .nav-btn{flex:1;padding:10px 4px 12px;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text3);font-size:10px;font-weight:500;transition:color .2s;position:relative}
 .nav-btn.active{color:var(--green)}
@@ -614,26 +901,27 @@ input,textarea{font-family:inherit}
 .page{display:none;flex:1;overflow-y:auto;padding:10px 10px 90px}
 .page.active{display:block}
 
-/* Category chips */
+/* Cats */
 .cat-row{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:4px;scrollbar-width:none}
 .cat-row::-webkit-scrollbar{display:none}
 .cat-chip{padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap;transition:all .2s;flex-shrink:0}
 .cat-chip.active{background:var(--green);border-color:var(--green);color:#fff}
 
-/* Menu 4-col grid */
+/* Menu grid 4-col */
 .menu-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .cat-section-title{grid-column:1/-1;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:14px 0 4px}
 .menu-item{background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:border-color .15s}
 .menu-item:hover{border-color:var(--green)}
 .item-emoji-box{width:100%;aspect-ratio:1;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--border);margin-bottom:6px;transition:all .15s}
 .item-body{width:100%}
-.item-name{font-size:11px;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.item-footer{display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:4px}
-.item-price{font-size:12px;font-weight:700;color:var(--green)}
-.qty-ctrl{display:flex;align-items:center;gap:4px}
-.qty-btn{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border2);background:none;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;color:var(--text2);transition:all .15s}
+.item-name{font-size:11px;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.item-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.item-price{font-size:12px;font-weight:700;color:var(--green);text-align:left}
+.item-price-khr{font-size:10px;color:var(--text3);font-weight:500;text-align:left}
+.qty-ctrl{display:flex;align-items:center;gap:3px}
+.qty-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border2);background:none;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;color:var(--text2);transition:all .15s}
 .qty-btn:hover,.qty-btn.add{background:var(--green);border-color:var(--green);color:#fff}
-.qty-num{width:18px;text-align:center;font-size:12px;font-weight:700;color:var(--text)}
+.qty-num{width:16px;text-align:center;font-size:11px;font-weight:700}
 
 /* Cart float */
 .cart-float{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);width:calc(100% - 28px);max-width:452px;z-index:40;display:none}
@@ -645,11 +933,10 @@ input,textarea{font-family:inherit}
 .cart-empty h3{font-size:18px;font-weight:600;margin-bottom:8px}
 .cart-empty p{font-size:14px;color:var(--text3);margin-bottom:24px}
 .cart-item{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.cart-item-emoji{font-size:28px;flex-shrink:0}
 .cart-item-info{flex:1;min-width:0}
 .cart-item-name{font-size:14px;font-weight:600;margin-bottom:2px}
-.cart-item-unit{font-size:12px;color:var(--text3)}
-.cart-item-subtotal{font-size:14px;font-weight:700;min-width:54px;text-align:right}
+.cart-item-unit{font-size:11px;color:var(--text3)}
+.cart-item-subtotal{font-size:13px;font-weight:700;min-width:60px;text-align:right}
 .order-note-wrap{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:12px 14px;margin-top:10px}
 .order-note-label{font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px}
 .order-note-input{width:100%;border:none;background:none;font-size:13px;color:var(--text);resize:none;outline:none;line-height:1.5}
@@ -675,15 +962,15 @@ input,textarea{font-family:inherit}
 .confirm-btns{display:flex;flex-direction:column;gap:8px;max-width:280px;margin:0 auto}
 
 /* Admin */
-.admin-tabs{display:flex;gap:8px;margin-bottom:14px}
-.admin-tab{flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:500;color:var(--text2);transition:all .2s}
+.admin-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+.admin-tabs::-webkit-scrollbar{display:none}
+.admin-tab{flex:0 0 auto;padding:9px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap;transition:all .2s}
 .admin-tab.active{background:var(--green);border-color:var(--green);color:#fff}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat-box{background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);padding:12px;text-align:center}
-.stat-num{font-size:24px;font-weight:700}
+.stat-num{font-size:22px;font-weight:700}
 .stat-label{font-size:11px;color:var(--text3);margin-top:2px;font-weight:500}
 .empty-admin{text-align:center;padding:48px 20px;color:var(--text3)}
-.empty-admin div{font-size:13px;margin-top:10px}
 .order-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:13px;margin-bottom:8px}
 .order-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .order-card-id{font-size:13px;font-weight:700}
@@ -698,13 +985,21 @@ input,textarea{font-family:inherit}
 .order-card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .order-card-total{font-size:15px;font-weight:700}
 .order-action-row{display:flex;gap:6px;flex-wrap:wrap}
-.order-action-btn{padding:7px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;transition:all .15s}
+.order-action-btn{padding:6px 10px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;transition:all .15s}
 .order-action-btn:hover{background:var(--surface2)}
 .order-action-btn.green{border-color:var(--green);color:var(--green)}
 .order-action-btn.green:hover{background:var(--green-light)}
 .top-item-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
 .top-item-count{font-weight:700;color:var(--green);background:var(--green-light);padding:3px 10px;border-radius:12px;font-size:12px}
-.admin-section-title{font-size:13px;font-weight:700;margin:16px 0 10px;text-transform:uppercase;letter-spacing:.6px}
+.admin-section-title{font-size:12px;font-weight:700;margin:16px 0 10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)}
+
+/* Menu Manager */
+.btn-add-item{padding:8px 16px;border-radius:var(--radius-sm);border:none;background:var(--green);color:#fff;font-size:13px;font-weight:600}
+.menu-mgr-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.icon-btn{width:34px;height:34px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.icon-btn.edit:hover{background:var(--blue-light);border-color:var(--blue)}
+.icon-btn.del:hover{background:var(--red-light);border-color:var(--red)}
+.icon-btn:hover{background:var(--surface2)}
 
 /* Setup */
 .setup-section{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px}
@@ -721,8 +1016,6 @@ input,textarea{font-family:inherit}
 .alert-ok{background:var(--green-light);color:var(--green-text)}
 .alert-err{background:var(--red-light);color:var(--red)}
 .alert-box svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;flex-shrink:0;margin-top:1px}
-#fb-banner{background:var(--amber-light);border:1px solid #EF9F27;border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;font-size:12px;color:#633806;line-height:1.7;display:none}
-#fb-banner code{background:rgba(0,0,0,.08);padding:1px 5px;border-radius:3px;font-size:11px}
 
 /* QR */
 .table-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
@@ -749,14 +1042,12 @@ input,textarea{font-family:inherit}
 .receipt-paid-stamp{display:inline-block;border:2px solid var(--green);color:var(--green);font-size:16px;font-weight:700;padding:4px 18px;border-radius:4px;margin-top:10px;letter-spacing:2px;transform:rotate(-6deg)}
 .receipt-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 
-/* Small btn */
-.sm-btn{padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:13px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;transition:all .15s}
+/* Misc */
+.sm-btn{padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:13px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;transition:all .15s;cursor:pointer}
 .sm-btn:hover{background:var(--surface2)}
 .sm-btn.green{border-color:var(--green);color:var(--green)}
 .sm-btn.green:hover{background:var(--green-light)}
-
-/* Toast */
-.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:500;z-index:300;pointer-events:none;opacity:0;transition:all .3s;white-space:nowrap}
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;font-weight:500;z-index:300;pointer-events:none;opacity:0;transition:all .3s;white-space:nowrap;max-width:90vw;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px}
 </style>
@@ -765,49 +1056,54 @@ input,textarea{font-family:inherit}
 <div class="app-wrap">
 
 <div id="loading-overlay">
-  <div style="font-size:32px">🍽️</div>
+  <div style="font-size:36px">☕</div>
   <div class="spinner"></div>
   <div style="font-size:13px;color:#888880">Connecting to Firebase…</div>
 </div>
 
+<!-- Header -->
 <div class="top-header">
-  <div class="restaurant-icon">🍽️</div>
+  <div class="restaurant-icon">☕</div>
   <div>
-    <div class="restaurant-name" id="header-name">My Restaurant</div>
+    <div class="restaurant-name" id="header-name">Blue Bean Coffee</div>
     <div class="restaurant-sub" id="header-sub">Phnom Penh, Cambodia</div>
   </div>
-  <div class="table-pill" id="header-table">Table 3</div>
+  <div class="table-pill" id="header-table">Table 1</div>
 </div>
 
+<!-- MENU PAGE -->
 <div class="page active" id="page-menu">
   <div class="cat-row" id="cat-row"></div>
-  <div class="menu-list" id="menu-list"></div>
+  <div class="menu-list" id="menu-list">
+    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3)">
+      <div class="spinner" style="margin:0 auto 12px"></div>
+      <div style="font-size:13px">Loading menu…</div>
+    </div>
+  </div>
 </div>
 
+<!-- CART PAGE -->
 <div class="page" id="page-cart">
   <div id="cart-body"></div>
 </div>
 
+<!-- ADMIN PAGE -->
 <div class="page" id="page-admin">
   <div class="admin-tabs">
     <button class="admin-tab active" onclick="adminTab('live')">Live Orders</button>
     <button class="admin-tab" onclick="adminTab('history')">History</button>
     <button class="admin-tab" onclick="adminTab('stats')">Stats</button>
+    <button class="admin-tab" onclick="adminTab('menu')">🍽️ Menu</button>
   </div>
   <div id="admin-body"></div>
 </div>
 
+<!-- SETUP PAGE -->
 <div class="page" id="page-setup">
-  <div id="fb-banner">
-    <strong>⚠️ Firebase not configured</strong><br>
-    Open <code>restaurant_menu.html</code>, find <code>FIREBASE_CONFIG</code> near the top, and replace the placeholder values with your Firebase project credentials.<br>
-    Get them from: <strong>Firebase Console → Project Settings → Your Apps → SDK setup &amp; configuration</strong>
-  </div>
-
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--green-light);color:var(--green-text)">📱</div>
-      <div><div class="setup-title">QR Menu Generator</div><div class="setup-sub">One QR per table · customers scan to order</div></div>
+      <div><div class="setup-title">QR Menu Generator</div><div class="setup-sub">One QR per table</div></div>
     </div>
     <div class="section-label">Select table</div>
     <div class="table-grid" id="table-grid"></div>
@@ -820,31 +1116,30 @@ input,textarea{font-family:inherit}
     </div>
     <button class="sm-btn green" onclick="downloadQR()" style="margin:0 auto">
       <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-      Download QR Code
+      Download QR
     </button>
   </div>
 
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:#e8f4fd;color:#229ED9">✈️</div>
-      <div><div class="setup-title">Telegram Alert Bot</div><div class="setup-sub">Config stored in Firestore · works on all devices</div></div>
+      <div><div class="setup-title">Telegram Alert Bot</div><div class="setup-sub">Saved to Firestore</div></div>
     </div>
     <div class="form-group">
       <label class="form-label">Bot Token</label>
       <input class="form-input" type="text" id="tg-token" placeholder="1234567890:AAFHbc...">
-      <div class="form-hint">Create bot: message @BotFather → /newbot</div>
+      <div class="form-hint">Create bot: @BotFather → /newbot</div>
     </div>
     <div class="form-group">
       <label class="form-label">Chat ID</label>
       <input class="form-input" type="text" id="tg-chat" placeholder="-1001234567890">
-      <div class="form-hint">Get your Chat ID from @userinfobot · For groups, add the bot first</div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:4px">
+    <div style="display:flex;gap:8px">
       <button class="sm-btn green" onclick="saveTelegram()">
         <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> Save
       </button>
       <button class="sm-btn" onclick="testTelegram()">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Test
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Test
       </button>
     </div>
     <div id="tg-alert" style="display:none"></div>
@@ -853,7 +1148,7 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--blue-light);color:var(--blue)">🖨️</div>
-      <div><div class="setup-title">Bluetooth Printer</div><div class="setup-sub">Thermal receipt printer · Chrome only</div></div>
+      <div><div class="setup-title">Bluetooth Printer</div><div class="setup-sub">Chrome only</div></div>
     </div>
     <button class="sm-btn" onclick="connectBluetooth()">
       <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 2L12 22M12 7L17 12L12 17"/></svg>
@@ -865,23 +1160,23 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--surface2)">⚙️</div>
-      <div><div class="setup-title">Restaurant Settings</div><div class="setup-sub">Saved to Firestore · syncs to all devices</div></div>
+      <div><div class="setup-title">Restaurant Settings</div><div class="setup-sub">Saved to Firestore</div></div>
     </div>
     <div class="form-group">
-      <label class="form-label">Restaurant Name</label>
-      <input class="form-input" type="text" id="settings-name" value="My Restaurant">
+      <label class="form-label">Name</label>
+      <input class="form-input" type="text" id="settings-name">
     </div>
     <div class="form-group">
       <label class="form-label">Address / Tagline</label>
-      <input class="form-input" type="text" id="settings-addr" value="Phnom Penh, Cambodia">
+      <input class="form-input" type="text" id="settings-addr">
     </div>
     <div class="form-group">
       <label class="form-label">Table Number</label>
-      <input class="form-input" type="number" id="settings-table" value="3" min="1" max="99">
+      <input class="form-input" type="number" id="settings-table" min="1" max="99">
     </div>
     <div class="form-group">
       <label class="form-label">Tax Rate (%)</label>
-      <input class="form-input" type="number" id="settings-tax" value="10" min="0" max="50">
+      <input class="form-input" type="number" id="settings-tax" min="0" max="50">
     </div>
     <button class="sm-btn green" onclick="saveSettings()">
       <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -890,6 +1185,7 @@ input,textarea{font-family:inherit}
   </div>
 </div>
 
+<!-- Cart Float -->
 <div class="cart-float" id="cart-float">
   <button class="cart-float-btn" onclick="switchPage('cart')">
     <span id="float-left">🛒 View Cart</span>
@@ -897,6 +1193,7 @@ input,textarea{font-family:inherit}
   </button>
 </div>
 
+<!-- Bottom Nav -->
 <div class="bottom-nav">
   <button class="nav-btn active" id="nav-menu" onclick="switchPage('menu')">
     <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>Menu
@@ -913,26 +1210,30 @@ input,textarea{font-family:inherit}
   </button>
 </div>
 
+<!-- Receipt Modal -->
 <div class="modal-overlay" id="receipt-modal">
   <div class="receipt-sheet">
     <div class="receipt-drag"></div>
     <div class="receipt-header">
-      <div class="receipt-restaurant" id="r-name">My Restaurant</div>
+      <div class="receipt-restaurant" id="r-name">Blue Bean Coffee</div>
       <div class="receipt-addr" id="r-addr">Phnom Penh, Cambodia</div>
       <div class="receipt-meta" id="r-meta"></div>
     </div>
     <hr class="receipt-divider">
     <div id="r-items"></div>
     <div id="r-totals"></div>
-    <div class="receipt-footer">Thank you for dining with us!<br>Please come again 🙏</div>
+    <div class="receipt-footer">Thank you for visiting!<br>Please come again ☕🙏</div>
     <div class="receipt-actions">
       <button class="btn btn-outline" onclick="closeReceipt()">Close</button>
-      <button class="btn btn-green" onclick="printReceipt()">🖨️ Print Receipt</button>
+      <button class="btn btn-green" onclick="printReceipt()">🖨️ Print</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 </div>
+
+<!-- Enable Firebase Storage: add to Firestore rules in console -->
+<!-- storage.rules: allow read, write: if true; -->
 </body>
 </html>
