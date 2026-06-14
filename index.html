@@ -13,14 +13,14 @@ import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAfjFM2giRC2Rj38G1a0j7eAprmxhYDkKE",
-  authDomain: "blue-bean-coffee-ec0c3.firebaseapp.com",
-  projectId: "blue-bean-coffee-ec0c3",
-  storageBucket: "blue-bean-coffee-ec0c3.firebasestorage.app",
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAfjFM2giRC2Rj38G1a0j7eAprmxhYDkKE",
+  authDomain:        "blue-bean-coffee-ec0c3.firebaseapp.com",
+  projectId:         "blue-bean-coffee-ec0c3",
+  storageBucket:     "blue-bean-coffee-ec0c3.firebasestorage.app",
   messagingSenderId: "368021122549",
-  appId: "1:368021122549:web:cc9241bc3e6b30516884bc",
-  measurementId: "G-XSSB39JRS5"
+  appId:             "1:368021122549:web:cc9241bc3e6b30516884bc",
+  measurementId:     "G-XSSB39JRS5"
 };
 
 const app     = initializeApp(FIREBASE_CONFIG);
