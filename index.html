@@ -434,11 +434,25 @@ window.placeOrder = async () => {
     document.getElementById("cart-body").innerHTML = `
       <div class="confirm-wrap">
         <div class="confirm-icon">✅</div>
-        <div class="confirm-title">Order Placed!</div>
-        <div class="confirm-sub">Table ${order.table} — sent to the kitchen!</div>
+        <div class="confirm-title">Order Sent!</div>
+        <div class="confirm-sub">
+          Table ${order.table}<br>
+          <span style="font-size:13px;color:var(--text3)">Please wait, staff will serve you shortly.</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:16px 0;text-align:left">
+          ${order.items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span>${i.qty}× ${i.name}</span>
+            <span style="font-weight:600;color:var(--green)">$${((i.priceUSD||0)*i.qty).toFixed(2)}</span>
+          </div>`).join("")}
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:10px;margin-top:4px">
+            <span>Total</span>
+            <span>$${(order.totalUSD).toFixed(2)} <span style="font-size:11px;font-weight:400;color:var(--text3)">/ ${order.totalKHR.toLocaleString()}រ</span></span>
+          </div>
+        </div>
         <div class="confirm-btns">
-          <button class="btn btn-green" onclick="switchPage('menu')">Back to Menu</button>
-          <button class="btn btn-outline" onclick="showReceipt('${ref.id}')">View Receipt</button>
+          <button class="btn btn-green" onclick="switchPage('menu')">
+            ← Order More Items
+          </button>
         </div>
       </div>`;
   } catch(e) {
@@ -493,33 +507,71 @@ function renderAdmin() {
     return;
   }
   el.innerHTML = list.map(o => {
-    const t  = new Date(o.time);
-    const ts = t.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-    const ds = t.toLocaleDateString([], { month:"short", day:"numeric" });
+    const t   = new Date(o.time);
+    const ts  = t.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+    const ds  = t.toLocaleDateString([], { month:"short", day:"numeric" });
+    const totalUSD = (o.totalUSD||o.total||0);
+    const totalKHR = o.totalKHR || Math.round(totalUSD * KHR_RATE);
     const stMap = { pending:"st-pending", preparing:"st-preparing", ready:"st-ready", paid:"st-paid" };
     const st = o.paid ? "paid" : o.status;
-    const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0) * KHR_RATE);
-    return `<div class="order-card">
+    const stLabel = { pending:"⏳ Pending", preparing:"👨‍🍳 Preparing", ready:"✅ Ready", paid:"💰 Paid" };
+    return `<div class="order-card${o.status==='ready'&&!o.paid?' order-card-highlight':''}">
       <div class="order-card-header">
         <div>
           <div class="order-card-id">Table ${o.table}</div>
-          <div class="order-card-time">${ds} at ${ts}</div>
+          <div class="order-card-time">${ds} · ${ts}</div>
         </div>
-        <span class="status-pill ${stMap[st]}">${st.charAt(0).toUpperCase()+st.slice(1)}</span>
+        <span class="status-pill ${stMap[st]}">${stLabel[st]||st}</span>
       </div>
-      <div class="order-card-items">${o.items.map(i=>`${i.qty}× ${i.name}`).join(" · ")}</div>
+
+      <!-- Items -->
+      <div style="margin-bottom:10px">
+        ${o.items.map(i=>`
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text2)">${i.qty}× ${i.name}</span>
+          <span style="font-weight:600">$${((i.priceUSD||0)*i.qty).toFixed(2)}</span>
+        </div>`).join("")}
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding-top:8px">
+          <span>Total</span>
+          <div style="text-align:right">
+            <div style="color:var(--green)">$${totalUSD.toFixed(2)}</div>
+            <div style="font-size:11px;font-weight:400;color:var(--text3)">${totalKHR.toLocaleString()}រ</div>
+          </div>
+        </div>
+      </div>
+
       ${o.note ? `<div class="order-card-note">📝 ${o.note}</div>` : ""}
-      <div class="order-card-footer">
-        <div>
-          <div class="order-card-total">$${(o.totalUSD||o.total||0).toFixed(2)}</div>
-          <div style="font-size:11px;color:var(--text3)">${totalKHR.toLocaleString()}រ</div>
-        </div>
-        <div class="order-action-row">
-          ${!o.paid && o.status==="pending"   ? `<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','preparing')">👨‍🍳 Preparing</button>` : ""}
-          ${!o.paid && o.status==="preparing" ? `<button class="order-action-btn" onclick="setStatus('${o.firestoreId}','ready')">✅ Ready</button>` : ""}
-          ${!o.paid ? `<button class="order-action-btn green" onclick="markPaid('${o.firestoreId}')">💰 Mark Paid</button>` : ""}
-          <button class="order-action-btn" onclick="showReceipt('${o.firestoreId}')">🖨️</button>
-        </div>
+
+      <!-- Action buttons — clear step-by-step flow -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+
+        ${!o.paid && o.status==="pending" ? `
+        <div style="display:flex;gap:8px">
+          <button class="order-action-btn" style="flex:1;justify-content:center" onclick="setStatus('${o.firestoreId}','preparing')">
+            👨‍🍳 Start Preparing
+          </button>
+        </div>` : ""}
+
+        ${!o.paid && o.status==="preparing" ? `
+        <div style="display:flex;gap:8px">
+          <button class="order-action-btn green" style="flex:1;justify-content:center" onclick="setStatus('${o.firestoreId}','ready')">
+            ✅ Mark as Ready
+          </button>
+        </div>` : ""}
+
+        ${!o.paid && o.status==="ready" ? `
+        <button class="pay-collect-btn" onclick="collectPayment('${o.firestoreId}')">
+          💰 Collect Payment · $${totalUSD.toFixed(2)}
+        </button>` : ""}
+
+        ${o.paid ? `
+        <button class="order-action-btn" style="width:100%;justify-content:center;background:var(--green-light);color:var(--green-text);border-color:var(--green)" onclick="printReceiptDirect('${o.firestoreId}')">
+          🖨️ Print Receipt
+        </button>` : `
+        <button class="order-action-btn" style="width:100%;justify-content:center" onclick="printReceiptDirect('${o.firestoreId}')">
+          🖨️ Print Receipt
+        </button>`}
+
       </div>
     </div>`;
   }).join("");
@@ -560,6 +612,31 @@ window.markPaid = async id => {
     if (o) sendTelegramPayment({ ...o, firestoreId:id });
     toast("✅ Payment recorded");
   } catch(e) { toast("Error: "+e.message); }
+};
+
+// Collect payment → mark paid → auto show receipt for printing
+window.collectPayment = async id => {
+  try {
+    await updateDoc(doc(db,"orders",id), { paid:true, status:"paid", paidAt:new Date().toISOString() });
+    // Update local orders array immediately
+    const idx = orders.findIndex(o => o.firestoreId === id);
+    if (idx !== -1) {
+      orders[idx] = { ...orders[idx], paid:true, status:"paid" };
+    }
+    const o = orders.find(o => o.firestoreId === id);
+    if (o) sendTelegramPayment({ ...o, firestoreId:id });
+    toast("✅ Payment collected!");
+    // Auto open receipt for printing
+    showReceipt(id);
+  } catch(e) { toast("Error: "+e.message); }
+};
+
+// Print receipt directly without opening modal first
+window.printReceiptDirect = id => {
+  const o = orders.find(o => o.firestoreId === id);
+  if (!o) { toast("Order not found"); return; }
+  activeReceiptId = id;
+  doPrint(o);
 };
 
 window.clearAllOrders = async () => {
@@ -823,79 +900,119 @@ window.deleteMenuItem = async id => {
 window.showReceipt = (id, retries = 3) => {
   const o = orders.find(o => o.firestoreId === id);
   if (!o) {
-    // Order not in local list yet — retry after 800ms (waiting for Firestore listener)
     if (retries > 0) {
       toast("Loading receipt…");
       setTimeout(() => showReceipt(id, retries - 1), 800);
-    } else {
-      toast("Receipt not found. Try again.");
-    }
+    } else { toast("Receipt not found. Try again."); }
     return;
   }
   activeReceiptId = id;
   const t = new Date(o.time);
+  const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
   document.getElementById("r-name").textContent = settings.name;
   document.getElementById("r-addr").textContent = settings.addr;
   document.getElementById("r-meta").textContent =
     `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} · Table ${o.table}`;
-  const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
   document.getElementById("r-items").innerHTML =
     o.items.map(i => {
       const khr = i.priceKHR || Math.round((i.priceUSD||0)*KHR_RATE);
       return `<div class="receipt-order-row">
         <span>${i.qty}× ${i.name}</span>
-        <span>$${((i.priceUSD||0)*i.qty).toFixed(2)} <span style="font-size:10px;color:#999">/ ${(khr*i.qty).toLocaleString()}រ</span></span>
+        <span>$${((i.priceUSD||0)*i.qty).toFixed(2)}<span style="font-size:10px;color:#999"> / ${(khr*i.qty).toLocaleString()}រ</span></span>
       </div>`;
     }).join("");
   const sub = o.subtotalUSD||o.subtotal||0;
-  const subKHR = o.subtotalKHR || Math.round(sub*KHR_RATE);
   const tax = o.taxUSD||o.tax||0;
   const total = o.totalUSD||o.total||0;
   document.getElementById("r-totals").innerHTML = `
     <hr class="receipt-divider">
     <div class="receipt-order-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
-    ${tax > 0 ? `<div class="receipt-order-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
+    ${tax>0?`<div class="receipt-order-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`:""}
     <div class="receipt-order-row total-row"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
-    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>In KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>
+    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>
     ${o.paid
       ? `<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">PAID</span></div>`
-      : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:600">UNPAID</div>`}`;
+      : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:700">⚠️ PAYMENT PENDING</div>`}`;
   document.getElementById("receipt-modal").classList.add("open");
 };
 
 window.closeReceipt = () => document.getElementById("receipt-modal").classList.remove("open");
 
+// Called from modal Print button
 window.printReceipt = () => {
   const o = orders.find(o => o.firestoreId === activeReceiptId);
-  if (!o) return;
-  const t  = new Date(o.time);
-  const ts = `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`;
+  if (o) doPrint(o);
+};
+
+// Called directly from order card
+window.printReceiptDirect = id => {
+  const o = orders.find(o => o.firestoreId === id);
+  if (!o) { toast("Order not found"); return; }
+  activeReceiptId = id;
+  doPrint(o);
+};
+
+// Core print function used by both paths
+function doPrint(o) {
+  const t   = new Date(o.time);
+  const ts  = `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`;
   const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
-  const w = window.open("","_blank","width=400,height=640");
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;max-width:300px;margin:0 auto;padding:12px}
-.c{text-align:center}.n{font-size:18px;font-weight:bold}.d{border:none;border-top:1px dashed #999;margin:10px 0}
-.r{display:flex;justify-content:space-between;padding:3px 0}.tot{font-weight:bold;font-size:15px;border-top:2px solid #000;padding-top:8px;margin-top:4px}
-.paid{border:2px solid green;color:green;padding:4px 16px;display:inline-block;margin-top:10px;transform:rotate(-5deg);font-weight:bold}
-.foot{text-align:center;margin-top:16px;font-size:11px;color:#666}</style></head><body>
-<div class="c"><div class="n">${settings.name}</div>
-<div style="font-size:11px;color:#666;margin-top:3px">${settings.addr}</div>
-<div style="font-size:11px;margin-top:4px">${ts} · Table ${o.table}</div></div>
+  const w = window.open("","_blank","width=400,height=680");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt · Table ${o.table}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Courier New',monospace;font-size:13px;max-width:300px;margin:0 auto;padding:16px}
+.c{text-align:center}
+.name{font-size:17px;font-weight:bold;letter-spacing:1px}
+.d{border:none;border-top:1px dashed #bbb;margin:10px 0}
+.row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid #f0f0f0}
+.row-right{text-align:right}
+.khr{font-size:10px;color:#999}
+.tot{font-weight:bold;font-size:15px;border-top:2px solid #000;margin-top:6px;padding-top:8px}
+.paid{border:2px solid #1D9E75;color:#1D9E75;padding:5px 20px;display:inline-block;margin-top:12px;transform:rotate(-5deg);font-weight:bold;font-size:16px;letter-spacing:3px}
+.foot{text-align:center;margin-top:20px;font-size:11px;color:#777;line-height:2}
+</style></head><body>
+<div class="c">
+  <div class="name">${settings.name}</div>
+  <div style="font-size:11px;color:#888;margin-top:3px">${settings.addr}</div>
+  <hr class="d">
+  <div style="font-size:11px">${ts}</div>
+  <div style="font-size:13px;font-weight:bold;margin-top:3px">— TABLE ${o.table} —</div>
+</div>
 <hr class="d">
-${o.items.map(i=>`<div class="r"><span>${i.qty}x ${i.name}</span><span>$${((i.priceUSD||0)*i.qty).toFixed(2)}</span></div>`).join("")}
+${o.items.map(i=>{
+  const khr=(i.priceKHR||Math.round((i.priceUSD||0)*KHR_RATE))*i.qty;
+  return `<div class="row">
+    <span>${i.qty}× ${i.name}</span>
+    <div class="row-right">
+      <div>$${((i.priceUSD||0)*i.qty).toFixed(2)}</div>
+      <div class="khr">${khr.toLocaleString()}រ</div>
+    </div>
+  </div>`;
+}).join("")}
 <hr class="d">
-<div class="r"><span>Subtotal</span><span>$${(o.subtotalUSD||o.subtotal||0).toFixed(2)}</span></div>
-${(o.taxUSD||0)>0?`<div class="r"><span>Tax ${settings.tax}%</span><span>$${(o.taxUSD||0).toFixed(2)}</span></div>`:""}
-<div class="r tot"><span>TOTAL</span><span>$${(o.totalUSD||o.total||0).toFixed(2)}</span></div>
-<div class="r" style="font-size:11px;color:#666"><span>KHR</span><span>${totalKHR.toLocaleString()} រ</span></div>
+<div class="row"><span>Subtotal</span><span>$${(o.subtotalUSD||o.subtotal||0).toFixed(2)}</span></div>
+${(o.taxUSD||0)>0?`<div class="row"><span>Tax (${settings.tax}%)</span><span>$${(o.taxUSD||0).toFixed(2)}</span></div>`:""}
+<div class="row tot">
+  <span>TOTAL</span>
+  <div class="row-right">
+    <div>$${(o.totalUSD||o.total||0).toFixed(2)}</div>
+    <div class="khr">${totalKHR.toLocaleString()} រៀល</div>
+  </div>
+</div>
+${o.note?`<hr class="d"><div style="font-size:11px;color:#777">📝 Note: ${o.note}</div>`:""}
 ${o.paid?'<div class="c"><span class="paid">PAID</span></div>':""}
-${o.note?`<div style="margin-top:10px;font-size:11px;color:#666">Note: ${o.note}</div>`:""}
-<div class="foot">${settings.name}<br>Thank you! Please come again 🙏</div>
-<script>window.onload=function(){window.print();setTimeout(()=>window.close(),800)}<\/script>
+<div class="foot">
+  ☕ ${settings.name}<br>
+  ${settings.addr}<br>
+  ——————————————<br>
+  Thank you! Please come again 🙏
+</div>
+<script>window.onload=function(){window.print();setTimeout(()=>window.close(),1000)}<\/script>
 </body></html>`);
   w.document.close();
   if (btDevice) sendToBluetooth(o);
-};
+}
 
 /* ─── TELEGRAM ─── */
 async function getTgCfg() {
@@ -1270,6 +1387,11 @@ input,textarea{font-family:inherit}
 .admin-tab#admin-auth-btn{border-color:var(--green);color:var(--green);margin-left:4px}
 .admin-tab#admin-auth-btn.signed-in{border-color:var(--red);color:var(--red)}
 .admin-tab#admin-auth-btn:hover{background:var(--green-light)}
+
+/* Collect payment button */
+.pay-collect-btn{width:100%;padding:13px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.8}}
+.order-card-highlight{border-color:var(--green);box-shadow:0 0 0 2px var(--green-light)}
 .sm-btn{padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:13px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;transition:all .15s;cursor:pointer}
 .sm-btn:hover{background:var(--surface2)}
 .sm-btn.green{border-color:var(--green);color:var(--green)}
