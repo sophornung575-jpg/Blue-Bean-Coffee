@@ -542,35 +542,37 @@ function renderAdmin() {
 
       ${o.note ? `<div class="order-card-note">📝 ${o.note}</div>` : ""}
 
-      <!-- Action buttons — clear step-by-step flow -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <!-- Step-by-step action flow -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
 
-        ${!o.paid && o.status==="pending" ? `
-        <div style="display:flex;gap:8px">
-          <button class="order-action-btn" style="flex:1;justify-content:center" onclick="setStatus('${o.firestoreId}','preparing')">
-            👨‍🍳 Start Preparing
+        ${!o.paid ? `
+        <!-- Step flow: show next logical action prominently -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="order-action-btn${(!o.status||o.status==='pending')?' active-step':''}"
+            onclick="setStatus('${o.firestoreId}','preparing')"
+            style="${o.status==='preparing'||o.status==='ready'?'opacity:.45;cursor:default':''}"
+            ${o.status==='preparing'||o.status==='ready'?'disabled':''}>
+            👨‍🍳 Preparing
           </button>
-        </div>` : ""}
-
-        ${!o.paid && o.status==="preparing" ? `
-        <div style="display:flex;gap:8px">
-          <button class="order-action-btn green" style="flex:1;justify-content:center" onclick="setStatus('${o.firestoreId}','ready')">
-            ✅ Mark as Ready
+          <button class="order-action-btn${o.status==='preparing'?' active-step':''}"
+            onclick="setStatus('${o.firestoreId}','ready')"
+            style="${o.status==='ready'?'opacity:.45;cursor:default':''}"
+            ${o.status==='ready'?'disabled':''}>
+            ✅ Ready
           </button>
-        </div>` : ""}
-
-        ${!o.paid && o.status==="ready" ? `
-        <button class="pay-collect-btn" onclick="collectPayment('${o.firestoreId}')">
-          💰 Collect Payment · $${totalUSD.toFixed(2)}
-        </button>` : ""}
-
-        ${o.paid ? `
-        <button class="order-action-btn" style="width:100%;justify-content:center;background:var(--green-light);color:var(--green-text);border-color:var(--green)" onclick="printReceiptDirect('${o.firestoreId}')">
-          🖨️ Print Receipt
+        </div>
+        <button class="pay-collect-btn${o.status==='ready'?'':' pay-collect-dim'}"
+          onclick="collectPayment('${o.firestoreId}')">
+          💰 Collect Payment &amp; Print · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
         </button>` : `
+        <!-- Paid — show print only -->
+        <div style="background:var(--green-light);border-radius:var(--radius-sm);padding:8px 12px;text-align:center;font-size:12px;font-weight:600;color:var(--green-text)">
+          ✅ PAID · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
+        </div>`}
+
         <button class="order-action-btn" style="width:100%;justify-content:center" onclick="printReceiptDirect('${o.firestoreId}')">
           🖨️ Print Receipt
-        </button>`}
+        </button>
 
       </div>
     </div>`;
@@ -1389,9 +1391,12 @@ input,textarea{font-family:inherit}
 .admin-tab#admin-auth-btn:hover{background:var(--green-light)}
 
 /* Collect payment button */
-.pay-collect-btn{width:100%;padding:13px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.8}}
+.pay-collect-btn{width:100%;padding:13px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s}
+.pay-collect-btn:hover{opacity:.9}
+.pay-collect-dim{background:#aaa !important;animation:none !important}
+.order-action-btn.active-step{background:var(--blue-light);border-color:var(--blue);color:var(--blue);font-weight:700}
 .order-card-highlight{border-color:var(--green);box-shadow:0 0 0 2px var(--green-light)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.8}}
 .sm-btn{padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);background:none;font-size:13px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:6px;transition:all .15s;cursor:pointer}
 .sm-btn:hover{background:var(--surface2)}
 .sm-btn.green{border-color:var(--green);color:var(--green)}
