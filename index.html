@@ -98,12 +98,17 @@ function startMenuListener() {
         renderMenuPage();
         if (activeAdminTab === "menu") renderMenuManager();
         showLoading(false);
+        // Hide any previous error banners
+        document.querySelectorAll(".fb-error-banner").forEach(b => b.remove());
       },
       err => {
-        console.warn("Menu listener error:", err.message);
+        console.warn("Menu listener error:", err.code, err.message);
         showLoading(false);
-        renderMenuPage(); // show empty menu with "Add items" prompt
-        showFirebaseError(err);
+        renderMenuPage();
+        // Show fix instructions
+        if (err.code === "permission-denied") {
+          showFirestoreFixBanner();
+        }
       }
     );
   } catch(e) {
@@ -113,18 +118,33 @@ function startMenuListener() {
   }
 }
 
-function showFirebaseError(err) {
-  // Only show banner for permission/config errors, not network blips
-  if (err.code === "permission-denied" || err.code === "unavailable") {
-    const msg = err.code === "permission-denied"
-      ? "Firestore rules blocked access. Go to Firebase Console → Firestore → Rules and allow read/write."
-      : "Cannot reach Firebase. Check your internet connection.";
-    const banner = document.createElement("div");
-    banner.style.cssText = "position:fixed;top:70px;left:50%;transform:translateX(-50%);width:calc(100% - 28px);max-width:452px;background:#FAEEDA;border:1px solid #EF9F27;border-radius:10px;padding:10px 14px;font-size:12px;color:#633806;z-index:100;line-height:1.6";
-    banner.innerHTML = `⚠️ <strong>Firebase:</strong> ${msg} <span onclick="this.parentNode.remove()" style="float:right;cursor:pointer;font-size:16px">✕</span>`;
-    document.body.appendChild(banner);
-    setTimeout(() => banner.remove(), 8000);
-  }
+function showFirestoreFixBanner() {
+  if (document.querySelector(".fb-error-banner")) return;
+  const banner = document.createElement("div");
+  banner.className = "fb-error-banner";
+  banner.style.cssText = "position:fixed;top:68px;left:50%;transform:translateX(-50%);width:calc(100% - 20px);max-width:460px;background:#fff3cd;border:1.5px solid #ffc107;border-radius:10px;padding:12px 14px;font-size:12px;color:#664d03;z-index:99;line-height:1.7;box-shadow:0 4px 12px rgba(0,0,0,.1)";
+  banner.innerHTML = `
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">⚠️ Firestore Rules Need Update</div>
+    <div>Go to <strong>Firebase Console → Firestore → Rules</strong> tab and paste:</div>
+    <div style="background:#1a1a1a;color:#4ade80;padding:8px 10px;border-radius:6px;margin:8px 0;font-family:monospace;font-size:11px;line-height:1.8">
+      rules_version = '2';<br>
+      service cloud.firestore {<br>
+      &nbsp;&nbsp;match /databases/{database}/documents {<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;match /{document=<b>**</b>} {<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+      &nbsp;&nbsp;}<br>
+      }
+    </div>
+    <div>Then click <strong>Publish</strong> and refresh this page.</div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <a href="https://console.firebase.google.com/project/blue-bean-coffee-ec0c3/firestore/rules" target="_blank"
+        style="background:#5BB8D4;color:#fff;padding:6px 14px;border-radius:6px;font-weight:600;font-size:12px;text-decoration:none">
+        Open Firebase Rules →
+      </a>
+      <span onclick="this.parentNode.parentNode.remove()" style="padding:6px 14px;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:12px">Dismiss</span>
+    </div>`;
+  document.body.appendChild(banner);
 }
 
 /* ─── REAL-TIME ORDERS LISTENER ─── */
@@ -176,17 +196,13 @@ function renderMenuItems() {
     updateCartFloat();
     return;
   }
-  let html = "", lastCat = "";
+  let html = "";
   items.forEach(item => {
-    if (activeCat === "All" && item.cat !== lastCat) {
-      html += `<div class="cat-section-title">${item.cat}</div>`;
-      lastCat = item.cat;
-    }
     const qty = getQty(item.fsId), has = qty > 0;
     const priceUSD = Number(item.priceUSD) || 0;
     const priceKHR = item.priceKHR ? Number(item.priceKHR) : Math.round(priceUSD * KHR_RATE);
     const imgHtml = item.photoBase64
-      ? `<img src="${item.photoBase64}" alt="${item.name}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;${has?"border-color:var(--green)":""}"/>`
+      ? `<img src="${item.photoBase64}" alt="${item.name}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid ${has?"var(--green)":"var(--border)"};margin-bottom:6px;transition:border-color .15s"/>`
       : `<div class="item-emoji-box" style="${has?"border-color:var(--green);background:var(--green-light)":""}">${item.emoji || "☕"}</div>`;
     html += `<div class="menu-item">
       ${imgHtml}
@@ -446,7 +462,18 @@ function renderMenuManager() {
       <button class="btn-add-item" onclick="openAddForm()">+ Add Item</button>
     </div>
     ${menuItems.length === 0
-      ? `<div class="empty-admin"><div style="font-size:40px">🍽️</div><div style="margin-top:10px;font-size:13px">No items yet. Add your first menu item!</div></div>`
+      ? `<div class="empty-admin" style="padding:20px 10px">
+          <div style="font-size:40px">🍽️</div>
+          <div style="font-size:14px;font-weight:700;margin:10px 0 6px;color:var(--text)">No menu items yet</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Make sure Firestore rules allow read/write, then add your first item.</div>
+          <button class="btn-add-item" onclick="openAddForm()" style="padding:12px 28px;font-size:14px">+ Add First Item</button>
+          <div style="margin-top:20px;background:#f8f8f4;border-radius:10px;padding:14px;text-align:left;font-size:12px;color:var(--text2);line-height:1.8">
+            <div style="font-weight:700;margin-bottom:6px">📋 Firestore Setup (one-time)</div>
+            <div>1. Go to <a href="https://console.firebase.google.com/project/blue-bean-coffee-ec0c3/firestore/rules" target="_blank" style="color:var(--green);font-weight:600">Firebase Console → Rules</a></div>
+            <div>2. Paste: <code style="background:#e0e0d8;padding:1px 5px;border-radius:3px">allow read, write: if true;</code></div>
+            <div>3. Click <strong>Publish</strong> → refresh this page</div>
+          </div>
+        </div>`
       : menuItems.map(item => {
           const usd = Number(item.priceUSD)||0;
           const khr = item.priceKHR ? Number(item.priceKHR) : Math.round(usd * KHR_RATE);
@@ -969,7 +996,6 @@ input,textarea{font-family:inherit}
 
 /* Menu grid 4-col */
 .menu-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.cat-section-title{grid-column:1/-1;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:14px 0 4px}
 .menu-item{background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:border-color .15s}
 .menu-item:hover{border-color:var(--green)}
 .item-emoji-box{width:100%;aspect-ratio:1;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--border);margin-bottom:6px;transition:all .15s}
