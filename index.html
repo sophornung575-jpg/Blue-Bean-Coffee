@@ -954,67 +954,150 @@ window.printReceiptDirect = id => {
   doPrint(o);
 };
 
-// Core print function used by both paths
+// Core print function — opens styled receipt window with Print + Share + Adjust
 function doPrint(o) {
+  const totalKHR = o.totalKHR || Math.round((o.totalUSD||0) * KHR_RATE);
   const t   = new Date(o.time);
-  const ts  = `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`;
-  const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
-  const w = window.open("","_blank","width=400,height=680");
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt · Table ${o.table}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Courier New',monospace;font-size:13px;max-width:300px;margin:0 auto;padding:16px}
-.c{text-align:center}
-.name{font-size:17px;font-weight:bold;letter-spacing:1px}
-.d{border:none;border-top:1px dashed #bbb;margin:10px 0}
-.row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid #f0f0f0}
-.row-right{text-align:right}
-.khr{font-size:10px;color:#999}
-.tot{font-weight:bold;font-size:15px;border-top:2px solid #000;margin-top:6px;padding-top:8px}
-.paid{border:2px solid #1D9E75;color:#1D9E75;padding:5px 20px;display:inline-block;margin-top:12px;transform:rotate(-5deg);font-weight:bold;font-size:16px;letter-spacing:3px}
-.foot{text-align:center;margin-top:20px;font-size:11px;color:#777;line-height:2}
-</style></head><body>
-<div class="c">
-  <div class="name">${settings.name}</div>
-  <div style="font-size:11px;color:#888;margin-top:3px">${settings.addr}</div>
-  <hr class="d">
-  <div style="font-size:11px">${ts}</div>
-  <div style="font-size:13px;font-weight:bold;margin-top:3px">— TABLE ${o.table} —</div>
-</div>
-<hr class="d">
-${o.items.map(i=>{
-  const khr=(i.priceKHR||Math.round((i.priceUSD||0)*KHR_RATE))*i.qty;
-  return `<div class="row">
-    <span>${i.qty}× ${i.name}</span>
-    <div class="row-right">
-      <div>$${((i.priceUSD||0)*i.qty).toFixed(2)}</div>
-      <div class="khr">${khr.toLocaleString()}រ</div>
-    </div>
-  </div>`;
-}).join("")}
-<hr class="d">
-<div class="row"><span>Subtotal</span><span>$${(o.subtotalUSD||o.subtotal||0).toFixed(2)}</span></div>
-${(o.taxUSD||0)>0?`<div class="row"><span>Tax (${settings.tax}%)</span><span>$${(o.taxUSD||0).toFixed(2)}</span></div>`:""}
-<div class="row tot">
-  <span>TOTAL</span>
-  <div class="row-right">
-    <div>$${(o.totalUSD||o.total||0).toFixed(2)}</div>
-    <div class="khr">${totalKHR.toLocaleString()} រៀល</div>
-  </div>
-</div>
-${o.note?`<hr class="d"><div style="font-size:11px;color:#777">📝 Note: ${o.note}</div>`:""}
-${o.paid?'<div class="c"><span class="paid">PAID</span></div>':""}
-<div class="foot">
-  ☕ ${settings.name}<br>
-  ${settings.addr}<br>
-  ——————————————<br>
-  Thank you! Please come again 🙏
-</div>
-<script>window.onload=function(){window.print();setTimeout(()=>window.close(),1000)}<\/script>
-</body></html>`);
-  w.document.close();
-  if (btDevice) sendToBluetooth(o);
+  const ts  = t.toLocaleDateString() + " " + t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+
+  // Build items HTML
+  let items = "";
+  o.items.forEach(i => {
+    const sub = ((i.priceUSD||0)*i.qty).toFixed(2);
+    const khr = ((i.priceKHR||Math.round((i.priceUSD||0)*KHR_RATE))*i.qty).toLocaleString();
+    items += `<div style="margin:1.5mm 0">
+      <div class="inm">${i.qty}× ${i.name}</div>
+      <div class="ir">
+        <span>${i.qty} × $${(i.priceUSD||0).toFixed(2)}</span>
+        <span><b>$${sub}</b> <span style="color:#999;font-size:7pt">/ ${khr}រ</span></span>
+      </div>
+    </div>`;
+  });
+
+  // Get logo from the page
+  const logoEl = document.querySelector('.restaurant-icon img');
+  const logo   = logoEl ? logoEl.src : "";
+
+  const receiptHTML = buildReceiptHTML(o, items, logo, ts, totalKHR);
+  openPrintWindow(receiptHTML, "Receipt_Table" + o.table);
 }
+
+function buildReceiptHTML(o, items, logo, ts, totalKHR) {
+  const sub   = (o.subtotalUSD||o.subtotal||0);
+  const tax   = (o.taxUSD||o.tax||0);
+  const total = (o.totalUSD||o.total||0);
+
+  let html = "";
+  html += `<!DOCTYPE html><html><head><title>Receipt · Table ${o.table}</title>`;
+  html += `<meta name="viewport" content="width=device-width,initial-scale=1">`;
+  html += `<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>`;
+  html += `<style>`;
+  html += `@page{size:58mm auto;margin:0}`;
+  html += `*{margin:0;padding:0;box-sizing:border-box}`;
+  html += `body{font-family:Arial,sans-serif;background:#f0f0f0;min-height:100vh;padding-bottom:130px}`;
+  html += `#receipt{width:58mm;margin:10px auto;padding:3mm 2mm 5mm;font-size:8pt;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.15)}`;
+  html += `.c{text-align:center}`;
+  html += `.logo{width:36mm;display:block;margin:0 auto 2mm}`;
+  html += `.dash{border:none;border-top:1px dashed #aaa;margin:1.5mm 0}`;
+  html += `.solid{border:none;border-top:1.5px solid #000;margin:1mm 0}`;
+  html += `.row{display:flex;justify-content:space-between;padding:0.5mm 0;font-size:9pt}`;
+  html += `.lbl{color:#555}`;
+  html += `.tot{font-weight:bold;font-size:12pt}`;
+  html += `.inm{font-weight:bold;font-size:9pt}`;
+  html += `.ir{display:flex;justify-content:space-between;font-size:8.5pt;color:#444;margin-top:0.5mm}`;
+  html += `.ft{text-align:center;font-size:9pt;color:#888;margin-top:2mm;line-height:1.8}`;
+  html += `#bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #e2e8f0;z-index:999;font-family:Arial,sans-serif}`;
+  html += `#btns{display:flex;gap:8px;padding:10px 12px;justify-content:center}`;
+  html += `#btns button{flex:1;max-width:120px;padding:13px 6px;border:none;border-radius:22px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px}`;
+  html += `.ba{background:#5BB8D4;color:#fff}.bp{background:#48bb78;color:#fff}.bsh{background:#f6ad55;color:#fff}`;
+  html += `#panel{display:none;padding:10px 14px;background:#f8fafc;border-top:1px solid #e2e8f0}`;
+  html += `#panel.open{display:block}`;
+  html += `.cr{display:flex;align-items:center;gap:8px;margin-bottom:8px}`;
+  html += `.cr label{font-size:12px;color:#555;width:90px;flex-shrink:0}`;
+  html += `.cr input[type=range]{flex:1;accent-color:#5BB8D4}`;
+  html += `.cr select{flex:1;padding:5px 7px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px}`;
+  html += `.cr span{font-size:12px;color:#5BB8D4;font-weight:bold;width:44px;text-align:right}`;
+  html += `#sharePreview{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:20px}`;
+  html += `#sharePreview.show{display:flex}`;
+  html += `#sharePreview img{max-width:100%;max-height:60vh;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5)}`;
+  html += `#sharePreview .share-btns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center}`;
+  html += `#sharePreview .share-btns button{padding:12px 20px;border:none;border-radius:20px;font-size:14px;font-weight:bold;cursor:pointer}`;
+  html += `.s-save{background:#48bb78;color:#fff}.s-share{background:#5BB8D4;color:#fff}.s-close{background:#e53e3e;color:#fff}`;
+  html += `@media print{#bar{display:none!important}body{background:#fff;padding-bottom:0}#receipt{box-shadow:none;margin:0}}`;
+  html += `</style></head><body>`;
+
+  // Receipt card
+  html += `<div id="receipt">`;
+  if (logo) {
+    html += `<div class="c" style="padding:2mm 0 1mm">`;
+    html += `<img class="logo" src="${logo}" crossorigin="anonymous">`;
+    html += `</div>`;
+  }
+  html += `<div class="c" style="font-size:11pt;font-weight:bold;letter-spacing:0.5px">${settings.name}</div>`;
+  html += `<div class="c" style="font-size:7pt;color:#888;margin-bottom:1mm">${settings.addr}</div>`;
+  html += `<div class="c" style="font-size:6.5pt;color:#aaa;letter-spacing:1px;margin-bottom:1mm">ORDER RECEIPT</div>`;
+  html += `<hr class="dash">`;
+  html += `<div class="row"><span class="lbl">Table</span><span>${o.table}</span></div>`;
+  html += `<div class="row"><span class="lbl">Date</span><span>${ts}</span></div>`;
+  html += `<hr class="dash">`;
+  html += items;
+  html += `<hr class="dash">`;
+  html += `<div class="row"><span class="lbl">Subtotal</span><span>$${sub.toFixed(2)}</span></div>`;
+  if (tax > 0) html += `<div class="row"><span class="lbl">Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`;
+  html += `<hr class="solid">`;
+  html += `<div class="row tot"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>`;
+  html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`;
+  if (o.note) { html += `<hr class="dash"><div class="row"><span class="lbl">Note</span><span>${o.note}</span></div>`; }
+  html += `<hr class="dash">`;
+  html += `<div class="c" style="font-size:10pt;font-weight:bold;color:${o.paid?'#48bb78':'#e53e3e'};margin-bottom:1mm">${o.paid?"✓ PAID":"⚠ UNPAID"}</div>`;
+  html += `<div class="ft">☕ Thank you! Please come again 🙏</div>`;
+  html += `</div>`;
+
+  // Share image preview overlay
+  html += `<div id="sharePreview"><img id="shareImg" src=""><div class="share-btns">`;
+  html += `<button class="s-save" onclick="saveImg()">↓ Save Image</button>`;
+  html += `<button class="s-share" onclick="shareImg()">↑ Share</button>`;
+  html += `<button class="s-close" onclick="document.getElementById('sharePreview').classList.remove('show')">✕ Close</button>`;
+  html += `</div></div>`;
+
+  // Bottom bar
+  html += `<div id="bar"><div id="btns">`;
+  html += `<button class="ba" onclick="document.getElementById('panel').classList.toggle('open')">⚙ Adjust</button>`;
+  html += `<button class="bp" onclick="window.print()">🖨 Print</button>`;
+  html += `<button class="bsh" onclick="makeImg()">📷 Share</button>`;
+  html += `</div><div id="panel">`;
+  html += `<div class="cr"><label>Paper width</label><select id="pw" onchange="ap()"><option value="58mm" selected>58 mm</option><option value="80mm">80 mm</option><option value="100mm">100 mm</option><option value="148mm">A6</option><option value="210mm">A4</option></select></div>`;
+  html += `<div class="cr"><label>Font size</label><input type="range" id="fs" min="6" max="14" value="8" step="0.5" oninput="ap()"><span id="fsv">8pt</span></div>`;
+  html += `<div class="cr"><label>Scale</label><input type="range" id="sc" min="50" max="200" value="100" step="5" oninput="ap()"><span id="scv">100%</span></div>`;
+  html += `</div></div>`;
+
+  // Scripts
+  html += `<script>`;
+  html += `var _imgBlob=null;`;
+  html += `function ap(){var p=document.getElementById("pw").value,f=parseFloat(document.getElementById("fs").value),s=parseInt(document.getElementById("sc").value);document.getElementById("fsv").textContent=f+"pt";document.getElementById("scv").textContent=s+"%";var r=document.getElementById("receipt");r.style.width=p;r.style.fontSize=f+"pt";r.style.transform="scale("+s/100+")";r.style.transformOrigin="top center";}`;
+  html += `function makeImg(){var btn=document.querySelector(".bsh");btn.textContent="Converting...";btn.disabled=true;var el=document.getElementById("receipt");var ow=el.style.transform;el.style.transform="none";html2canvas(el,{scale:3,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",logging:false,imageTimeout:0}).then(function(canvas){el.style.transform=ow;canvas.toBlob(function(blob){_imgBlob=blob;var url=URL.createObjectURL(blob);document.getElementById("shareImg").src=url;document.getElementById("sharePreview").classList.add("show");btn.textContent="📷 Share";btn.disabled=false;},"image/png");}).catch(function(){btn.textContent="📷 Share";btn.disabled=false;alert("Image capture failed");});}`;
+  html += `function saveImg(){if(!_imgBlob)return;var a=document.createElement("a");a.href=URL.createObjectURL(_imgBlob);a.download="receipt.png";a.click();}`;
+  html += `function shareImg(){if(!_imgBlob)return;var file=new File([_imgBlob],"receipt.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:"Receipt"}).catch(function(){saveImg();});}else{saveImg();}}`;
+  html += `<\/script>`;
+  html += `</body></html>`;
+  return html;
+}
+
+function openPrintWindow(receiptHTML, title) {
+  const w = window.open("", "_blank", "width=600,height=800");
+  if (w) {
+    w.document.write(receiptHTML);
+    w.document.close();
+  } else {
+    // Popup blocked — fallback to blob URL
+    const blob = new Blob([receiptHTML], { type:"text/html" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}
+
 
 /* ─── TELEGRAM ─── */
 async function getTgCfg() {
