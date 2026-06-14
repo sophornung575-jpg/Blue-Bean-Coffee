@@ -1072,34 +1072,179 @@ function showAlert(el,ok,msg) {
   el.innerHTML=`<svg viewBox="0 0 24 24"><polyline points="${ok?"20 6 9 17 4 12":"18 6 6 18 6 6 18 18"}"/></svg><span>${msg}</span>`;
 }
 
-/* ─── BLUETOOTH ─── */
-window.connectBluetooth = async () => {
-  if (!navigator.bluetooth) { document.getElementById("bt-status").textContent="Chrome required."; return; }
-  try {
-    btDevice = await navigator.bluetooth.requestDevice({acceptAllDevices:true,
-      optionalServices:["000018f0-0000-1000-8000-00805f9b34fb"]});
-    document.getElementById("bt-btn-label").textContent=(btDevice.name||"Printer")+" ✓";
-    document.getElementById("bt-status").innerHTML=`<span style="color:var(--green-dark);font-weight:600">✓ ${btDevice.name||"Printer"} connected</span>`;
-    toast("Printer connected!");
-  } catch(e) { document.getElementById("bt-status").textContent="Not connected: "+e.message; }
+/* ─── BLUETOOTH THERMAL PRINTER (ESC/POS) ─── */
+// Compatible: Xprinter, GOOJPRT, MUNBYN, Rongta, Epson TM series
+// Requires: Chrome on Android or Chrome desktop
+
+const ESC = 0x1B, GS = 0x1D;
+const CMD = {
+  INIT:         [0x1B, 0x40],
+  ALIGN_LEFT:   [0x1B, 0x61, 0x00],
+  ALIGN_CENTER: [0x1B, 0x61, 0x01],
+  BOLD_ON:      [0x1B, 0x45, 0x01],
+  BOLD_OFF:     [0x1B, 0x45, 0x00],
+  DOUBLE_SIZE:  [0x1D, 0x21, 0x11],
+  NORMAL_SIZE:  [0x1D, 0x21, 0x00],
+  FEED_CUT:     [0x1D, 0x56, 0x41, 0x10],
+  LINE:         [0x0A],
 };
 
-async function sendToBluetooth(order) {
-  if (!btDevice) return;
+const PRINTER_SERVICES = [
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+  "0000ff00-0000-1000-8000-00805f9b34fb",
+];
+const PRINTER_CHARS = [
+  "00002af1-0000-1000-8000-00805f9b34fb",
+  "0000ff02-0000-1000-8000-00805f9b34fb",
+  "49535343-8841-43f4-a8d4-ecbe34729bb3",
+  "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f",
+];
+
+let btServer = null, btCharacter = null;
+
+window.connectBluetooth = async () => {
+  const statusEl = document.getElementById("bt-status");
+  const btnLabel = document.getElementById("bt-btn-label");
+  if (!navigator.bluetooth) {
+    statusEl.innerHTML = '<span style="color:var(--red)">Use Chrome on Android or Chrome desktop</span>';
+    return;
+  }
   try {
-    const server=await btDevice.gatt.connect();
-    const svc=await server.getPrimaryService("000018f0-0000-1000-8000-00805f9b34fb");
-    const ch=await svc.getCharacteristic("00002af1-0000-1000-8000-00805f9b34fb");
-    const totalKHR = order.totalKHR || Math.round((order.totalUSD||order.total||0)*KHR_RATE);
-    const lines=[settings.name,settings.addr,"",`Table ${order.table}`,new Date(order.time).toLocaleString(),"",
-      ...order.items.map(i=>`${i.qty}x ${i.name}  $${((i.priceUSD||0)*i.qty).toFixed(2)}`),
-      "","Total: $"+(order.totalUSD||order.total||0).toFixed(2),
-      "KHR: "+totalKHR.toLocaleString()+" រ",
-      order.paid?"PAID":"UNPAID","","Thank you!"].join("\r\n");
-    const data=new TextEncoder().encode(lines+"\n\n\n");
-    for(let i=0;i<data.length;i+=100) await ch.writeValue(data.slice(i,i+100));
-  } catch(e) { console.warn("BT:",e.message); }
+    statusEl.textContent = "Searching for printer...";
+    btDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: PRINTER_SERVICES
+    });
+    statusEl.textContent = "Connecting to " + (btDevice.name||"printer") + "...";
+    btServer = await btDevice.gatt.connect();
+
+    // Find working service
+    let svc = null;
+    for (const uuid of PRINTER_SERVICES) {
+      try { svc = await btServer.getPrimaryService(uuid); if (svc) break; } catch(e) {}
+    }
+    if (!svc) throw new Error("No print service found. Check printer is in pairing mode.");
+
+    // Find writable characteristic
+    btCharacter = null;
+    for (const uuid of PRINTER_CHARS) {
+      try { btCharacter = await svc.getCharacteristic(uuid); if (btCharacter) break; } catch(e) {}
+    }
+    if (!btCharacter) {
+      const chars = await svc.getCharacteristics();
+      for (const c of chars) {
+        if (c.properties.write || c.properties.writeWithoutResponse) { btCharacter = c; break; }
+      }
+    }
+    if (!btCharacter) throw new Error("No writable channel found on printer.");
+
+    btnLabel.textContent = (btDevice.name||"Printer") + " \u2713";
+    statusEl.innerHTML = '<div style="color:var(--green-dark);font-weight:600">\u2713 Connected: ' + (btDevice.name||"Printer") + '</div>'
+      + '<button class="sm-btn green" style="margin-top:8px;width:100%;justify-content:center" onclick="testPrint()">Print Test Page</button>';
+    toast("Printer connected!");
+
+    btDevice.addEventListener("gattserverdisconnected", () => {
+      btDevice = null; btServer = null; btCharacter = null;
+      btnLabel.textContent = "Connect Printer";
+      statusEl.innerHTML = '<span style="color:var(--amber)">Printer disconnected. Tap to reconnect.</span>';
+    });
+  } catch(e) {
+    statusEl.innerHTML = '<span style="color:var(--red)">' + e.message + '</span>';
+    btDevice = null; btServer = null; btCharacter = null;
+  }
+};
+
+async function writeToChar(bytes) {
+  if (!btCharacter) throw new Error("Not connected");
+  if (!btServer?.connected) btServer = await btDevice.gatt.connect();
+  const CHUNK = 100;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const chunk = new Uint8Array(bytes.slice(i, i + CHUNK));
+    try { await btCharacter.writeValueWithoutResponse(chunk); }
+    catch(e) { await btCharacter.writeValue(chunk); }
+    await new Promise(r => setTimeout(r, 30));
+  }
 }
+
+function buildESCReceipt(order) {
+  const enc = new TextEncoder();
+  const b = [];
+  const push = arr => b.push(...arr);
+  const text = str => b.push(...enc.encode(str));
+  const nl = () => b.push(0x0A);
+  const dashes = () => { text("--------------------------------"); nl(); };
+  const padLine = (left, right, w=32) => {
+    const gap = w - left.length - right.length;
+    text(left + " ".repeat(Math.max(1, gap)) + right); nl();
+  };
+
+  const totalKHR = order.totalKHR || Math.round((order.totalUSD||0) * KHR_RATE);
+  const t = new Date(order.time);
+  const ts = t.toLocaleDateString() + " " + t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+
+  push(CMD.INIT);
+  push(CMD.ALIGN_CENTER);
+  push(CMD.BOLD_ON); push(CMD.DOUBLE_SIZE);
+  text(settings.name); nl();
+  push(CMD.NORMAL_SIZE); push(CMD.BOLD_OFF);
+  text(settings.addr); nl();
+  text(ts); nl();
+  push(CMD.BOLD_ON);
+  text("TABLE " + order.table); nl();
+  push(CMD.BOLD_OFF);
+  push(CMD.ALIGN_LEFT);
+  dashes();
+
+  order.items.forEach(i => {
+    const usd = "$" + ((i.priceUSD||0)*i.qty).toFixed(2);
+    padLine(i.qty + "x " + i.name, usd);
+  });
+
+  dashes();
+  if ((order.taxUSD||0) > 0) {
+    padLine("Subtotal", "$" + (order.subtotalUSD||0).toFixed(2));
+    padLine("Tax (" + settings.tax + "%)", "$" + (order.taxUSD||0).toFixed(2));
+    dashes();
+  }
+  push(CMD.BOLD_ON);
+  padLine("TOTAL", "$" + (order.totalUSD||0).toFixed(2));
+  push(CMD.BOLD_OFF);
+  text("KHR: " + totalKHR.toLocaleString() + " \u179a"); nl();
+
+  if (order.note) { dashes(); text("Note: " + order.note); nl(); }
+
+  dashes();
+  push(CMD.ALIGN_CENTER);
+  if (order.paid) { push(CMD.BOLD_ON); text("*** PAID ***"); nl(); push(CMD.BOLD_OFF); }
+  text("Thank you! Please come again"); nl();
+  nl(); nl(); nl();
+  push(CMD.FEED_CUT);
+
+  return b;
+}
+
+async function sendToBluetooth(order) {
+  if (!btCharacter) return;
+  try {
+    await writeToChar(buildESCReceipt(order));
+    toast("Printed!");
+  } catch(e) {
+    toast("Print failed: " + e.message);
+    console.warn("BT print:", e.message);
+  }
+}
+
+window.testPrint = async () => {
+  if (!btCharacter) { toast("Connect printer first"); return; }
+  const sample = {
+    table:"TEST", time:new Date().toISOString(),
+    items:[{name:"Iced Latte",qty:2,priceUSD:3.50,priceKHR:14350}],
+    subtotalUSD:7, taxUSD:0, totalUSD:7, totalKHR:28700, paid:true, note:""
+  };
+  await sendToBluetooth(sample);
+};
 
 /* ─── QR CODE (real, scannable) ─── */
 const SITE_URL = "https://sophornung575-jpg.github.io/Blue-Bean-Coffee/";
