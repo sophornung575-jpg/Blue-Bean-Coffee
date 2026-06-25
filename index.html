@@ -44,6 +44,7 @@ let activeMenuTab  = "items";
 let editItemId     = null;
 let activeQRTable  = 1;
 let activeReceiptId = null;
+let activeReceiptOrder = null; // cached order object currently shown in the receipt modal
 let unsubOrders    = null;
 let unsubMenu      = null;
 let currentAdmin   = null;   // Firebase user when logged in as admin
@@ -894,8 +895,12 @@ window.confirmPayment = async () => {
     if (idx !== -1) orders[idx] = { ...orders[idx], ...payload };
     const updated = orders.find(x => x.firestoreId === pmOrderId);
     if (updated) sendTelegramPayment(updated);
-    // Capture the ID before closing the modal — closePaymentModal() clears pmOrderId to null
+    // Capture the ID and the full updated order before closing the modal —
+    // closePaymentModal() clears pmOrderId to null, and the live Firestore
+    // listener can rebuild `orders` at any moment, so we hold onto our own
+    // copy rather than looking it up again afterward.
     const paidOrderId = pmOrderId;
+    const paidOrder = updated ? { ...updated } : { ...o, ...payload };
     closePaymentModal();
     toast("✅ Payment collected!");
     // Re-render the order list right away so the card flips to "Paid"
@@ -903,8 +908,9 @@ window.confirmPayment = async () => {
     if (document.getElementById("page-admin").classList.contains("active") && activeAdminTab !== "menu" && activeAdminTab !== "stats") {
       renderAdmin();
     }
-    // Open receipt preview for printing
-    showReceipt(paidOrderId);
+    // Open receipt preview for printing — pass the order object directly so
+    // this never depends on finding it in `orders` again.
+    showReceipt(paidOrderId, 3, paidOrder);
   } catch(e) {
     btn.disabled = false; btn.textContent = "✓ Confirm Payment Received";
     if (e.code === "permission-denied") {
@@ -1186,9 +1192,14 @@ window.deleteMenuItem = async id => {
   } catch(e) { toast("Delete failed: " + e.message); }
 };
 
-/* ─── RECEIPT ─── */
-window.showReceipt = (id, retries = 3) => {
-  const o = orders.find(o => o.firestoreId === id);
+/* ─── RECEIPT ───
+   showReceipt(id) looks the order up in the local `orders` array (existing behavior,
+   used by reprint buttons etc).
+   showReceipt(id, 3, orderObj) skips the lookup entirely and renders orderObj directly —
+   used right after confirmPayment(), where we already hold the just-paid order in hand
+   and don't want to race against the Firestore onSnapshot listener rebuilding `orders`. */
+window.showReceipt = (id, retries = 3, directOrder = null) => {
+  const o = directOrder || orders.find(o => o.firestoreId === id);
   if (!o) {
     if (retries > 0) {
       toast("Loading receipt…");
@@ -1197,6 +1208,7 @@ window.showReceipt = (id, retries = 3) => {
     return;
   }
   activeReceiptId = id;
+  activeReceiptOrder = o;
   const t = new Date(o.time);
   const totalKHR = o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE);
   document.getElementById("r-name").textContent = settings.name;
@@ -1238,8 +1250,9 @@ window.closeReceipt = () => document.getElementById("receipt-modal").classList.r
 
 // Called from modal Print button
 window.printReceipt = () => {
-  const o = orders.find(o => o.firestoreId === activeReceiptId);
+  const o = activeReceiptOrder || orders.find(o => o.firestoreId === activeReceiptId);
   if (o) doPrint(o);
+  else toast("Receipt data not available. Please reopen the receipt.");
 };
 
 // Core print function — sends to Bluetooth thermal printer if connected,
