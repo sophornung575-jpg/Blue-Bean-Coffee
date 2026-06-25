@@ -860,6 +860,11 @@ window.confirmPayment = async () => {
     if (updated) sendTelegramPayment(updated);
     closePaymentModal();
     toast("✅ Payment collected!");
+    // Re-render the order list right away so the card flips to "Paid"
+    // immediately, instead of waiting for the Firestore snapshot round-trip.
+    if (document.getElementById("page-admin").classList.contains("active") && activeAdminTab !== "menu" && activeAdminTab !== "stats") {
+      renderAdmin();
+    }
     // Open receipt preview for printing
     showReceipt(pmOrderId);
   } catch(e) {
