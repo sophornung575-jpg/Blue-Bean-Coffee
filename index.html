@@ -267,14 +267,14 @@ window.switchPage = p => {
 function renderMenuPage() {
   const cats = ["All", ...new Set(menuItems.map(m => m.cat).filter(Boolean))];
   document.getElementById("cat-row").innerHTML =
-    cats.map(c => `<button class="cat-chip${c === activeCat ? " active" : ""}" onclick="filterCat('${c}')">${c}</button>`).join("");
+    cats.map(c => `<button class="cat-chip${c === activeCat ? " active" : ""}" onclick="filterCat('${c}',this)">${c}</button>`).join("");
   renderMenuItems();
 }
 
-window.filterCat = c => {
+window.filterCat = (c, el) => {
   activeCat = c;
   document.querySelectorAll(".cat-chip").forEach(b => b.classList.remove("active"));
-  event.target.classList.add("active");
+  if (el) el.classList.add("active");
   renderMenuItems();
 };
 
@@ -946,16 +946,13 @@ window.printReceipt = () => {
   if (o) doPrint(o);
 };
 
-// Called directly from order card
-window.printReceiptDirect = id => {
-  const o = orders.find(o => o.firestoreId === id);
-  if (!o) { toast("Order not found"); return; }
-  activeReceiptId = id;
-  doPrint(o);
-};
-
-// Core print function — opens styled receipt window with Print + Share + Adjust
+// Core print function — sends to Bluetooth thermal printer if connected,
+// otherwise opens the styled browser print window with Print + Share + Adjust
 function doPrint(o) {
+  if (btCharacter) {
+    sendToBluetooth(o);
+    return;
+  }
   const totalKHR = o.totalKHR || Math.round((o.totalUSD||0) * KHR_RATE);
   const t   = new Date(o.time);
   const ts  = t.toLocaleDateString() + " " + t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
