@@ -711,7 +711,7 @@ function renderStats(el) {
 window.exportStatsCSV = () => {
   const scoped = filterOrdersByStatsRange(orders);
   if (!scoped.length) { toast("No orders in this range"); return; }
-  const headers = ["Order ID","Table","Items","Subtotal USD","Tax USD","Total USD","Total KHR","Payment Method","Cash Received","Change","Status","Time"];
+  const headers = ["Order ID","Table","Items","Subtotal USD","Tax USD","Total USD","Total KHR","Payment Method","Cash Received USD","Cash Received KHR","Change USD","Change KHR","Status","Time"];
   const rows = scoped.map(o => [
     o.firestoreId || "",
     o.table,
@@ -721,8 +721,10 @@ window.exportStatsCSV = () => {
     (o.totalUSD||o.total||0).toFixed(2),
     o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE),
     o.paymentMethod || "",
-    o.cashReceived !== undefined ? o.cashReceived.toFixed(2) : "",
+    o.cashReceivedUSD !== undefined ? o.cashReceivedUSD.toFixed(2) : "",
+    o.cashReceivedKHR !== undefined ? o.cashReceivedKHR : "",
     o.cashChange !== undefined ? o.cashChange.toFixed(2) : "",
+    o.cashChangeKHR !== undefined ? o.cashChangeKHR : "",
     o.paid ? "paid" : (o.status||"pending"),
     new Date(o.time).toLocaleString()
   ]);
@@ -764,8 +766,10 @@ function openPaymentModal(o) {
   document.getElementById("pm-order-meta").textContent = `Table ${o.table} · Order #${o.firestoreId.slice(-5).toUpperCase()}`;
   document.getElementById("pm-amount-due").textContent = `$${totalUSD.toFixed(2)}`;
   document.getElementById("pm-amount-due-khr").textContent = `${totalKHR.toLocaleString()} រៀល`;
-  document.getElementById("pm-cash-received").value = "";
+  document.getElementById("pm-cash-received-usd").value = "";
+  document.getElementById("pm-cash-received-khr").value = "";
   document.getElementById("pm-change").textContent = "$0.00";
+  document.getElementById("pm-change-khr").textContent = "0 រៀល";
   document.getElementById("pm-change").style.color = "var(--green-dark)";
   document.getElementById("pm-change-warn").style.display = "none";
   document.getElementById("pm-confirm-btn").disabled = true;
@@ -775,17 +779,26 @@ function openPaymentModal(o) {
   document.querySelectorAll(".pay-method-btn").forEach(b => b.classList.toggle("active", b.dataset.method === "cash"));
   document.getElementById("pm-cash-block").style.display = "block";
 
-  // Quick-cash suggestion buttons
-  const suggestions = new Set();
-  suggestions.add(Math.ceil(totalUSD));
-  [1,2,5,10,20,50,100].forEach(note => { if (note >= totalUSD) suggestions.add(note); });
-  const sorted = [...suggestions].sort((a,b)=>a-b).slice(0,5);
-  document.getElementById("pm-quick-cash").innerHTML = sorted.map(v =>
-    `<button class="quick-cash-btn" onclick="setQuickCash(${v})">$${v.toFixed(2)}</button>`
+  // Quick-cash suggestion buttons — USD
+  const suggestionsUSD = new Set();
+  suggestionsUSD.add(Math.ceil(totalUSD));
+  [1,2,5,10,20,50,100].forEach(note => { if (note >= totalUSD) suggestionsUSD.add(note); });
+  const sortedUSD = [...suggestionsUSD].sort((a,b)=>a-b).slice(0,5);
+  document.getElementById("pm-quick-cash").innerHTML = sortedUSD.map(v =>
+    `<button class="quick-cash-btn" onclick="setQuickCashUSD(${v})">$${v.toFixed(2)}</button>`
+  ).join("");
+
+  // Quick-cash suggestion buttons — KHR (common note denominations: 1k, 5k, 10k, 20k, 50k, 100k)
+  const suggestionsKHR = new Set();
+  suggestionsKHR.add(Math.ceil(totalKHR / 100) * 100);
+  [1000,5000,10000,20000,50000,100000].forEach(note => { if (note >= totalKHR) suggestionsKHR.add(note); });
+  const sortedKHR = [...suggestionsKHR].sort((a,b)=>a-b).slice(0,5);
+  document.getElementById("pm-quick-cash-khr").innerHTML = sortedKHR.map(v =>
+    `<button class="quick-cash-btn" onclick="setQuickCashKHR(${v})">${v.toLocaleString()}រ</button>`
   ).join("");
 
   document.getElementById("payment-modal").classList.add("open");
-  setTimeout(() => document.getElementById("pm-cash-received").focus(), 150);
+  setTimeout(() => document.getElementById("pm-cash-received-usd").focus(), 150);
 }
 
 window.selectPayMethod = (method, el) => {
@@ -803,8 +816,13 @@ window.selectPayMethod = (method, el) => {
   }
 };
 
-window.setQuickCash = v => {
-  document.getElementById("pm-cash-received").value = v.toFixed(2);
+window.setQuickCashUSD = v => {
+  document.getElementById("pm-cash-received-usd").value = v.toFixed(2);
+  calcChange();
+};
+
+window.setQuickCashKHR = v => {
+  document.getElementById("pm-cash-received-khr").value = v;
   calcChange();
 };
 
@@ -812,26 +830,36 @@ window.calcChange = () => {
   const o = orders.find(o => o.firestoreId === pmOrderId);
   if (!o) return;
   const totalUSD = o.totalUSD || o.total || 0;
-  const received = parseFloat(document.getElementById("pm-cash-received").value) || 0;
-  const change   = received - totalUSD;
-  const changeEl = document.getElementById("pm-change");
-  const warnEl    = document.getElementById("pm-change-warn");
-  const confirmBtn = document.getElementById("pm-confirm-btn");
 
-  if (received <= 0) {
+  const receivedUSD = parseFloat(document.getElementById("pm-cash-received-usd").value) || 0;
+  const receivedKHR = parseFloat(document.getElementById("pm-cash-received-khr").value) || 0;
+  // Combine both currencies into one USD-equivalent total received
+  const totalReceivedUSD = receivedUSD + (receivedKHR / KHR_RATE);
+  const change = totalReceivedUSD - totalUSD;
+  const changeKHR = Math.round(change * KHR_RATE);
+
+  const changeEl    = document.getElementById("pm-change");
+  const changeKhrEl = document.getElementById("pm-change-khr");
+  const warnEl       = document.getElementById("pm-change-warn");
+  const confirmBtn   = document.getElementById("pm-confirm-btn");
+
+  if (receivedUSD <= 0 && receivedKHR <= 0) {
     changeEl.textContent = "$0.00";
+    changeKhrEl.textContent = "0 រៀល";
     changeEl.style.color = "var(--green-dark)";
     warnEl.style.display = "none";
     confirmBtn.disabled = true;
     return;
   }
-  if (change < 0) {
+  if (change < -0.001) {
     changeEl.textContent = "-$" + Math.abs(change).toFixed(2);
+    changeKhrEl.textContent = "-" + Math.abs(changeKHR).toLocaleString() + " រៀល";
     changeEl.style.color = "var(--red)";
     warnEl.style.display = "block";
     confirmBtn.disabled = true;
   } else {
-    changeEl.textContent = "$" + change.toFixed(2);
+    changeEl.textContent = "$" + Math.max(0,change).toFixed(2);
+    changeKhrEl.textContent = Math.max(0,changeKHR).toLocaleString() + " រៀល";
     changeEl.style.color = "var(--green-dark)";
     warnEl.style.display = "none";
     confirmBtn.disabled = false;
@@ -850,9 +878,14 @@ window.confirmPayment = async () => {
     paymentMethod: pmMethod
   };
   if (pmMethod === "cash") {
-    const received = parseFloat(document.getElementById("pm-cash-received").value) || 0;
-    payload.cashReceived = received;
-    payload.cashChange   = received - totalUSD;
+    const receivedUSD = parseFloat(document.getElementById("pm-cash-received-usd").value) || 0;
+    const receivedKHR = parseFloat(document.getElementById("pm-cash-received-khr").value) || 0;
+    const totalReceivedUSD = receivedUSD + (receivedKHR / KHR_RATE);
+    payload.cashReceivedUSD = receivedUSD;
+    payload.cashReceivedKHR = receivedKHR;
+    payload.cashReceived    = totalReceivedUSD; // USD-equivalent total, kept for backward compatibility
+    payload.cashChange      = totalReceivedUSD - totalUSD;
+    payload.cashChangeKHR   = Math.round((totalReceivedUSD - totalUSD) * KHR_RATE);
   }
 
   try {
@@ -1181,8 +1214,9 @@ window.showReceipt = (id, retries = 3) => {
   const total = o.totalUSD||o.total||0;
   const methodLabel = { cash:"💵 Cash", card:"💳 Card", qr:"📲 QR Pay" }[o.paymentMethod] || "";
   const cashRows = (o.paymentMethod === "cash" && o.cashReceived !== undefined)
-    ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Cash Received</span><span>$${o.cashReceived.toFixed(2)}</span></div>
-       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Change</span><span>$${o.cashChange.toFixed(2)}</span></div>`
+    ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Cash Received (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>
+       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Cash Received (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()} រៀល</span></div>
+       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Change</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`
     : "";
   document.getElementById("r-totals").innerHTML = `
     <hr class="receipt-divider">
@@ -1308,8 +1342,9 @@ function buildReceiptHTML(o, items, logo, ts, totalKHR) {
     const methodLabel = { cash:"Cash", card:"Card", qr:"QR Pay" }[o.paymentMethod] || o.paymentMethod;
     html += `<div class="row" style="font-size:8pt;color:#888"><span>Payment</span><span>${methodLabel}</span></div>`;
     if (o.paymentMethod === "cash" && o.cashReceived !== undefined) {
-      html += `<div class="row" style="font-size:8pt;color:#888"><span>Cash Received</span><span>$${o.cashReceived.toFixed(2)}</span></div>`;
-      html += `<div class="row" style="font-size:8pt;color:#888"><span>Change</span><span>$${o.cashChange.toFixed(2)}</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>Received (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>Received (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()}រ</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>Change</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`;
     }
   }
   if (o.note) { html += `<hr class="dash"><div class="row"><span class="lbl">Note</span><span>${o.note}</span></div>`; }
@@ -1391,8 +1426,8 @@ async function sendTelegramPayment(order) {
     `💰 $${(order.totalUSD||order.total||0).toFixed(2)} / ${(order.totalKHR||0).toLocaleString()}រ — PAID`];
   if (methodLabel) lines.push(methodLabel);
   if (order.paymentMethod === "cash" && order.cashReceived !== undefined) {
-    lines.push(`💵 Received: $${order.cashReceived.toFixed(2)}`);
-    lines.push(`💱 Change: $${order.cashChange.toFixed(2)}`);
+    lines.push(`💵 Received: $${(order.cashReceivedUSD||0).toFixed(2)} + ${(order.cashReceivedKHR||0).toLocaleString()}រ`);
+    lines.push(`💱 Change: $${order.cashChange.toFixed(2)} / ${(order.cashChangeKHR||0).toLocaleString()}រ`);
   }
   lines.push(`⏰ ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`);
   const msg = lines.join("\n");
@@ -1572,8 +1607,9 @@ function buildESCReceipt(order) {
     const methodLabel = { cash:"Cash", card:"Card", qr:"QR Pay" }[order.paymentMethod] || order.paymentMethod;
     padLine("Payment", methodLabel);
     if (order.paymentMethod === "cash" && order.cashReceived !== undefined) {
-      padLine("Cash Received", "$" + order.cashReceived.toFixed(2));
-      padLine("Change", "$" + order.cashChange.toFixed(2));
+      padLine("Received (USD)", "$" + (order.cashReceivedUSD||0).toFixed(2));
+      padLine("Received (KHR)", (order.cashReceivedKHR||0).toLocaleString() + "\u179a");
+      padLine("Change", "$" + order.cashChange.toFixed(2) + " / " + (order.cashChangeKHR||0).toLocaleString() + "\u179a");
     }
   }
 
@@ -2168,16 +2204,29 @@ input,textarea{font-family:inherit}
 
     <!-- Cash tendered + change (only shown when method = cash) -->
     <div id="pm-cash-block">
-      <div class="form-group" style="margin-top:14px">
-        <label class="form-label">Cash Received</label>
-        <input class="form-input" type="number" id="pm-cash-received" step="0.01" min="0" placeholder="0.00"
-               style="font-size:18px;font-weight:700;text-align:right" oninput="calcChange()" autocomplete="off">
+      <div class="form-label" style="margin-top:14px;margin-bottom:8px">Cash Received</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="font-size:10px">USD ($)</label>
+          <input class="form-input" type="number" id="pm-cash-received-usd" step="0.01" min="0" placeholder="0.00"
+                 style="font-size:16px;font-weight:700;text-align:right" oninput="calcChange()" autocomplete="off">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="font-size:10px">KHR (រៀល)</label>
+          <input class="form-input" type="number" id="pm-cash-received-khr" step="100" min="0" placeholder="0"
+                 style="font-size:16px;font-weight:700;text-align:right" oninput="calcChange()" autocomplete="off">
+        </div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="pm-quick-cash"></div>
+      <div style="font-size:10px;color:var(--text3);margin:6px 0 12px">Customer can pay with a mix of USD and KHR — enter both if needed.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="pm-quick-cash"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="pm-quick-cash-khr"></div>
       <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:12px;font-weight:600;color:var(--text3)">Change Due</span>
           <span id="pm-change" style="font-size:20px;font-weight:800;color:var(--green-dark)">$0.00</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:2px">
+          <span id="pm-change-khr" style="font-size:12px;color:var(--text3)">0 រៀល</span>
         </div>
         <div id="pm-change-warn" style="display:none;font-size:11px;color:var(--red);margin-top:4px">⚠️ Amount received is less than total due</div>
       </div>
