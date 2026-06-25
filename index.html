@@ -738,7 +738,10 @@ window.exportStatsCSV = () => {
 
 window.setStatus = async (id, status) => {
   try { await updateDoc(doc(db,"orders",id), { status }); }
-  catch(e) { toast("Error: "+e.message); }
+  catch(e) {
+    if (e.code === "permission-denied") { showFirestoreFixBanner(); toast("❌ Firestore rules are blocking updates"); }
+    else toast("Error: "+e.message);
+  }
 };
 
 // Collect payment — opens Payment modal (method + cash calculator) instead of paying instantly
@@ -868,8 +871,13 @@ window.confirmPayment = async () => {
     // Open receipt preview for printing
     showReceipt(pmOrderId);
   } catch(e) {
-    toast("Error: " + e.message);
     btn.disabled = false; btn.textContent = "✓ Confirm Payment Received";
+    if (e.code === "permission-denied") {
+      toast("❌ Firestore rules are blocking this update — see banner below");
+      showFirestoreFixBanner();
+    } else {
+      toast("Error: " + e.message);
+    }
   }
 };
 
