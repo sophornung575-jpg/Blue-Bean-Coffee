@@ -1886,10 +1886,10 @@ input,textarea{font-family:inherit}
 
 /* Setup */
 @media (min-width:768px){
-  #page-setup{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-content:start}
+  #page-setup.active{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-content:start}
 }
 @media (min-width:1200px){
-  #page-setup{grid-template-columns:repeat(2,1fr);max-width:1000px;margin:0 auto}
+  #page-setup.active{grid-template-columns:repeat(2,1fr);max-width:1000px;margin:0 auto}
 }
 .setup-section{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px}
 @media (min-width:768px){ .setup-section{margin-bottom:0} }
