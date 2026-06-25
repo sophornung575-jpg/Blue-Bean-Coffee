@@ -894,6 +894,8 @@ window.confirmPayment = async () => {
     if (idx !== -1) orders[idx] = { ...orders[idx], ...payload };
     const updated = orders.find(x => x.firestoreId === pmOrderId);
     if (updated) sendTelegramPayment(updated);
+    // Capture the ID before closing the modal — closePaymentModal() clears pmOrderId to null
+    const paidOrderId = pmOrderId;
     closePaymentModal();
     toast("✅ Payment collected!");
     // Re-render the order list right away so the card flips to "Paid"
@@ -902,7 +904,7 @@ window.confirmPayment = async () => {
       renderAdmin();
     }
     // Open receipt preview for printing
-    showReceipt(pmOrderId);
+    showReceipt(paidOrderId);
   } catch(e) {
     btn.disabled = false; btn.textContent = "✓ Confirm Payment Received";
     if (e.code === "permission-denied") {
