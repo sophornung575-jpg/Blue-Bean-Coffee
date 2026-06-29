@@ -1520,6 +1520,60 @@ async function sendTelegramPayment(order) {
     {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:cfg.chat,text:msg})}); } catch(e){}
 }
 
+/* ─── DAILY SUMMARY ───
+   Manual trigger — staff taps this at closing time. There's no backend/cron
+   in this app, so a true automatic midnight send isn't possible; this button
+   is the reliable equivalent. Always scoped to "today" regardless of whatever
+   date range the Stats tab happens to have selected. */
+window.sendDailySummary = async () => {
+  const cfg = await getTgCfg();
+  if (!cfg?.token || !cfg?.chat) { toast("Set up Telegram bot token & chat ID first"); return; }
+
+  const today = new Date().toDateString();
+  const todayOrders = orders.filter(o => new Date(o.time).toDateString() === today);
+  const paid = todayOrders.filter(o => o.paid);
+
+  const totalUSD = paid.reduce((s,o) => s + (o.totalUSD||o.total||0), 0);
+  const totalKHR = paid.reduce((s,o) => s + (o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE)), 0);
+
+  const byMethod = { cash:0, card:0, qr:0 };
+  const byMethodCount = { cash:0, card:0, qr:0 };
+  paid.forEach(o => {
+    const m = o.paymentMethod || "cash";
+    if (byMethod[m] === undefined) return;
+    byMethod[m] += (o.totalUSD||o.total||0);
+    byMethodCount[m]++;
+  });
+
+  const dateLabel = new Date().toLocaleDateString([], { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  const lines = [
+    `📊 *DAILY SUMMARY — ${settings.name}*`,
+    `📅 ${dateLabel}`,
+    "",
+    `✅ Total Paid Orders: ${paid.length}`,
+    `📋 Total Orders Placed: ${todayOrders.length}`,
+    "",
+    `💰 *Revenue: $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ*`,
+    "",
+    `*Payment Methods:*`,
+    `  💵 Cash: $${byMethod.cash.toFixed(2)} (${byMethodCount.cash} orders)`,
+    `  💳 Card: $${byMethod.card.toFixed(2)} (${byMethodCount.card} orders)`,
+    `  📲 QR Pay: $${byMethod.qr.toFixed(2)} (${byMethodCount.qr} orders)`,
+    "",
+    `⏰ Sent ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`
+  ];
+  const msg = lines.join("\n");
+
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,
+      { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ chat_id: cfg.chat, text: msg, parse_mode: "Markdown" }) });
+    const d = await r.json();
+    if (d.ok) toast("✅ Daily summary sent!");
+    else toast("Failed: " + (d.description || "Unknown error"));
+  } catch(e) { toast("Error: " + e.message); }
+};
+
 window.saveTelegram = async () => {
   const token = document.getElementById("tg-token").value.trim();
   const chat  = document.getElementById("tg-chat").value.trim();
@@ -2197,6 +2251,11 @@ input,textarea{font-family:inherit}
       </button>
     </div>
     <div id="tg-alert" style="display:none"></div>
+    <div style="border-top:1px solid var(--border);margin:14px 0 12px"></div>
+    <button class="sm-btn" style="width:100%;justify-content:center" onclick="sendDailySummary()">
+      📤 Send Daily Summary
+    </button>
+    <div class="form-hint" style="margin-top:6px;text-align:center">Sends today's totals to Telegram — tap this at closing time</div>
   </div>
 
   <div class="setup-section">
