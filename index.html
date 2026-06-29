@@ -706,7 +706,8 @@ function renderStats(el) {
     <div class="admin-section-title">Top Items</div>
     ${top.length ? top.map(([n,q])=>`<div class="top-item-row"><span>${n}</span><span class="top-item-count">${q}×</span></div>`).join("") : "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No orders in this range</div>"}
     <div class="admin-section-title" style="margin-top:20px">Actions</div>
-    <button class="sm-btn" onclick="exportStatsCSV()">📥 Export CSV (this range)</button>
+    <button class="sm-btn" style="width:100%;justify-content:center" onclick="sendDailySummary()">📤 Send Daily Summary to Telegram</button>
+    <button class="sm-btn" style="margin-top:8px" onclick="exportStatsCSV()">📥 Export CSV (this range)</button>
     <button class="sm-btn" style="color:var(--red);border-color:var(--red);margin-top:8px" onclick="clearAllOrders()">🗑️ Delete All Orders</button>`;
 }
 
@@ -2251,11 +2252,6 @@ input,textarea{font-family:inherit}
       </button>
     </div>
     <div id="tg-alert" style="display:none"></div>
-    <div style="border-top:1px solid var(--border);margin:14px 0 12px"></div>
-    <button class="sm-btn" style="width:100%;justify-content:center" onclick="sendDailySummary()">
-      📤 Send Daily Summary
-    </button>
-    <div class="form-hint" style="margin-top:6px;text-align:center">Sends today's totals to Telegram — tap this at closing time</div>
   </div>
 
   <div class="setup-section">
