@@ -33,6 +33,196 @@ const auth = getAuth(app);
 const KHR_RATE = 4100; // 1 USD = 4100 KHR
 const LOGO_DATA_URI = "data:image/png;base64,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"; // Blue Bean Coffee bean+wordmark logo, reused across header, export, etc.
 
+/* ─── I18N ───
+   UI text only (labels, buttons, statuses, messages) is translated.
+   Menu item names, shop name/address, and staff-typed notes are left as
+   entered — those are content the shop owner controls in their own language
+   already, not interface chrome. */
+const I18N = {
+  en: {
+    table: "Table", menu: "Menu", cart: "Cart", admin: "Admin", setup: "Setup",
+    noItemsYet: "No items yet", goToAdminToAdd: "Go to Admin → Menu to add your first item",
+    viewCart: "View Cart",
+    yourOrder: "Your order", cartEmpty: "Cart is empty", browseAndAdd: "Browse the menu and add items",
+    viewMenu: "View Menu", specialRequests: "Special requests / allergies",
+    specialRequestsPlaceholder: "e.g. less sugar, no ice...",
+    subtotal: "Subtotal", tax: "Tax", total: "Total", placeOrder: "Place Order",
+    continueOrdering: "← Continue Ordering", sending: "Sending…",
+    orderSent: "Order Sent!", pleaseWaitStaff: "Please wait, staff will serve you shortly.",
+    orderMoreItems: "← Order More Items",
+    adminAccessRequired: "Admin Access Required",
+    signInToManage: "Sign in to manage orders, view stats, and edit the menu.",
+    signInAsAdmin: "🔑 Sign In as Admin",
+    customersCanOrder: "Customers can order from the Menu tab without signing in.",
+    username: "Username", password: "Password", signIn: "Sign In", signOut: "Sign Out",
+    adminSignIn: "Admin Sign In", manageOrdersMenuSettings: "Manage orders, menu & settings",
+    email: "Email",
+    live: "Live", history: "History", stats: "Stats",
+    noActiveOrders: "No active orders", noPaidOrdersYet: "No paid orders yet",
+    preparing: "Preparing", ready: "Ready", pending: "Pending", paid: "Paid",
+    collectPaymentPrint: "Collect Payment & Print", printReceipt: "Print Receipt",
+    collectPayment: "Collect Payment", amountDue: "Amount Due", paymentMethod: "Payment Method",
+    cash: "Cash", card: "Card", qrPay: "QR Pay", cashReceived: "Cash Received",
+    changeDue: "Change Due", confirmPaymentReceived: "✓ Confirm Payment Received",
+    processing: "Processing…", amountLessThanDue: "Amount received is less than total due",
+    mixCurrencyHint: "Customer can pay with a mix of USD and KHR — enter both if needed.",
+    dateRange: "Date Range", today: "Today", thisWeek: "This Week", thisMonth: "This Month",
+    allTime: "All Time", custom: "Custom", from: "From", to: "To", apply: "Apply",
+    showing: "Showing", orders: "Orders", revenue: "Revenue", totalRevenueKHR: "Total Revenue (KHR)",
+    paymentMethods: "Payment Methods", topItems: "Top Items", noOrdersInRange: "No orders in this range",
+    actions: "Actions", sendDailySummary: "📤 Send Daily Summary to Telegram",
+    exportCSV: "📥 Export CSV (this range)", deleteAllOrders: "🗑️ Delete All Orders",
+    menuItems: "Menu Items", addItem: "+ Add Item", exportMenu: "📥 Export Menu",
+    noMenuItemsToExport: "No menu items to export", editItem: "Edit Item", itemName: "Item Name",
+    category: "Category", priceUSD: "Price (USD)", priceKHR: "Price (KHR)", emoji: "Emoji",
+    photo: "Photo", saveItem: "Save Item", cancel: "Cancel", deleteItem: "Delete Item",
+    noMenuItemsYet: "No menu items yet", makeSureFirestoreRules: "Make sure Firestore rules allow read/write, then add your first item.",
+    addFirstItem: "+ Add First Item", menuExportedWithPhotos: "📥 Menu exported with photos",
+    addNewItem: "Add New Item", tapToUploadPhoto: "Tap to upload photo",
+    changePhoto: "Change Photo", uploadPhoto: "Upload Photo", removePhoto: "🗑️ Remove Photo",
+    uploading: "Uploading…", itemNameRequired: "Item Name *", categoryRequired: "Category *",
+    emojiFallback: "Emoji (fallback if no photo)", priceUSDRequired: "Price USD *",
+    autoConvertHint: "USD auto-converts to KHR (rate: 1$ = {rate}រ). You can override KHR manually.",
+    saveChanges: "Save Changes", addToMenu: "Add to Menu",
+    signedInAsAdmin: "✅ Signed in as admin", signedOut: "Signed out",
+    pickBothDates: "Pick both start and end dates", startBeforeEnd: "Start date must be before end date",
+    csvExported: "📥 CSV exported", firestoreRulesBlockingUpdates: "❌ Firestore rules are blocking updates",
+    allOrdersDeleted: "All orders deleted", imageError: "Image error",
+    itemNameRequiredMsg: "Item name is required", categoryRequiredMsg: "Category is required",
+    priceMustBeGreater: "Price USD must be greater than 0", itemUpdated: "✅ Item updated!",
+    itemAddedToMenu: "✅ Item added to menu!", photoTooLarge: "Photo too large — try a smaller image",
+    saveFailed: "Save failed", itemDeleted: "Item deleted", deleteFailed: "Delete failed",
+    receiptDataNotAvailable: "Receipt data not available. Please reopen the receipt.",
+    setupTelegramFirst: "Set up Telegram bot token & chat ID first",
+    dailySummarySent: "✅ Daily summary sent!", failed: "Failed", unknownError: "Unknown error",
+    telegramSaved: "✅ Telegram saved to Firestore", printerConnected: "Printer connected!",
+    printed: "Printed!", printFailed: "Print failed", connectPrinterFirst: "Connect printer first",
+    qrNotReady: "QR not ready yet", settingsSaved: "✅ Settings saved",
+    useChromeAndroidDesktop: "Use Chrome on Android or Chrome desktop",
+    searchingForPrinter: "Searching for printer...", connectingTo: "Connecting to",
+    connected: "Connected", printTestPage: "Print Test Page",
+    printerDisconnected: "Printer disconnected. Tap to reconnect.",
+    enterBotTokenChatId: "Enter bot token and chat ID first", testSentCheckTelegram: "Test sent! Check Telegram.",
+    takingLonger: "Taking longer than expected…", enterEmailPassword: "Enter email and password",
+    signingIn: "Signing in…", wrongEmailPassword: "Wrong email or password",
+    orderReceipt: "ORDER RECEIPT", date: "Date", paidLabel: "✓ PAID", unpaidLabel: "⚠ UNPAID",
+    note: "Note", thankYouPleaseComeAgain: "☕ Thank you! Please come again 🙏",
+    qrMenuGenerator: "QR Menu Generator", onePerTable: "One QR per table", selectTable: "Select table",
+    telegramAlertBot: "Telegram Alert Bot", savedToFirestore: "Saved to Firestore",
+    botToken: "Bot Token", chatId: "Chat ID", save: "Save", test: "Test",
+    bluetoothPrinter: "Bluetooth Printer", chromeOnly: "Chrome only", connectPrinter: "Connect Printer",
+    restaurantSettings: "Restaurant Settings", name: "Name", addressTagline: "Address / Tagline",
+    taxRate: "Tax Rate (%)", tableNumber: "Table Number",
+    orderNotFound: "Order not found", receiptNotFound: "Receipt not found. Try again.",
+    close: "Close", thankYouVisiting: "Thank you for visiting!", pleaseComeAgain: "Please come again",
+    paymentPending: "PAYMENT PENDING",
+    loadingReceipt: "Loading receipt…", paymentCollected: "✅ Payment collected!",
+    error: "Error", firestoreRulesBlocking: "❌ Firestore rules are blocking this update — see banner below",
+  },
+  km: {
+    table: "តុ", menu: "មីនុយ", cart: "កន្ត្រក", admin: "អ្នកគ្រប់គ្រង", setup: "ការកំណត់",
+    noItemsYet: "មិនទាន់មានមុខម្ហូបទេ", goToAdminToAdd: "ចូលទៅ អ្នកគ្រប់គ្រង → មីនុយ ដើម្បីបញ្ចូលមុខទីមួយ",
+    viewCart: "មើលកន្ត្រក",
+    yourOrder: "ការបញ្ជារបស់អ្នក", cartEmpty: "កន្ត្រកគឺទទេ", browseAndAdd: "មើលមីនុយ ហើយបញ្ចូលមុខម្ហូប",
+    viewMenu: "មើលមីនុយ", specialRequests: "សំណើពិសេស / អាឡែស៊ី",
+    specialRequestsPlaceholder: "ឧ. ស្ករតិច, គ្មានទឹកកក...",
+    subtotal: "សរុបរង", tax: "ពន្ធ", total: "សរុប", placeOrder: "កម្ម៉ង់",
+    continueOrdering: "← កម្ម៉ង់បន្ថែម", sending: "កំពុងផ្ញើ…",
+    orderSent: "បានផ្ញើការកម្ម៉ង់!", pleaseWaitStaff: "សូមរង់ចាំ បុគ្គលិកនឹងមកបម្រើអ្នកក្នុងពេលឆាប់ៗនេះ។",
+    orderMoreItems: "← កម្ម៉ង់បន្ថែមទៀត",
+    adminAccessRequired: "ត្រូវការសិទ្ធិអ្នកគ្រប់គ្រង",
+    signInToManage: "ចូលគណនីដើម្បីគ្រប់គ្រងការកម្ម៉ង់ មើលរបាយការណ៍ និងកែសម្រួលមីនុយ។",
+    signInAsAdmin: "🔑 ចូលជាអ្នកគ្រប់គ្រង",
+    customersCanOrder: "អតិថិជនអាចកម្ម៉ង់ពីផ្ទាំងមីនុយដោយមិនចូលគណនី។",
+    username: "ឈ្មោះអ្នកប្រើ", password: "ពាក្យសម្ងាត់", signIn: "ចូលគណនី", signOut: "ចាកចេញ",
+    adminSignIn: "ចូលគណនីអ្នកគ្រប់គ្រង", manageOrdersMenuSettings: "គ្រប់គ្រងការកម្ម៉ង់ មីនុយ និងការកំណត់",
+    email: "អ៊ីមែល",
+    live: "កំពុងដំណើរការ", history: "ប្រវត្តិ", stats: "របាយការណ៍",
+    noActiveOrders: "មិនមានការកម្ម៉ង់សកម្មទេ", noPaidOrdersYet: "មិនទាន់មានការបង់ប្រាក់ទេ",
+    preparing: "កំពុងធ្វើ", ready: "រួចរាល់", pending: "កំពុងរង់ចាំ", paid: "បានបង់ប្រាក់",
+    collectPaymentPrint: "ទទួលប្រាក់ & បញ្ចេញវិក្កយបត្រ", printReceipt: "បញ្ចេញវិក្កយបត្រ",
+    collectPayment: "ទទួលប្រាក់", amountDue: "ចំនួនត្រូវបង់", paymentMethod: "វិធីបង់ប្រាក់",
+    cash: "ប្រាក់សុទ្ធ", card: "កាត", qrPay: "ស្កេន QR", cashReceived: "ប្រាក់ដែលបានទទួល",
+    changeDue: "ប្រាក់អាប់", confirmPaymentReceived: "✓ បញ្ជាក់ថាបានទទួលប្រាក់",
+    processing: "កំពុងដំណើរការ…", amountLessThanDue: "ប្រាក់ដែលបានទទួលតិចជាងចំនួនត្រូវបង់",
+    mixCurrencyHint: "អតិថិជនអាចបង់ប្រាក់ជាដុល្លារ និងរៀលរួមគ្នា — សូមបញ្ចូលទាំងពីរប្រសិនបើត្រូវការ។",
+    dateRange: "ចន្លោះកាលបរិច្ឆេទ", today: "ថ្ងៃនេះ", thisWeek: "សប្តាហ៍នេះ", thisMonth: "ខែនេះ",
+    allTime: "គ្រប់ពេល", custom: "កំណត់ដោយខ្លួនឯង", from: "ពី", to: "ដល់", apply: "អនុវត្ត",
+    showing: "កំពុងបង្ហាញ", orders: "ការកម្ម៉ង់", revenue: "ប្រាក់ចំណូល", totalRevenueKHR: "ប្រាក់ចំណូលសរុប (រៀល)",
+    paymentMethods: "វិធីបង់ប្រាក់", topItems: "មុខម្ហូបពេញនិយម", noOrdersInRange: "មិនមានការកម្ម៉ង់ក្នុងចន្លោះនេះ",
+    actions: "សកម្មភាព", sendDailySummary: "📤 ផ្ញើសេចក្តីសង្ខេបប្រចាំថ្ងៃទៅ Telegram",
+    exportCSV: "📥 នាំចេញ CSV (ចន្លោះនេះ)", deleteAllOrders: "🗑️ លុបការកម្ម៉ង់ទាំងអស់",
+    menuItems: "មុខម្ហូបក្នុងមីនុយ", addItem: "+ បញ្ចូលមុខម្ហូប", exportMenu: "📥 នាំចេញមីនុយ",
+    noMenuItemsToExport: "មិនមានមុខម្ហូបសម្រាប់នាំចេញទេ", editItem: "កែសម្រួលមុខម្ហូប", itemName: "ឈ្មោះមុខម្ហូប",
+    category: "ប្រភេទ", priceUSD: "តម្លៃ (ដុល្លារ)", priceKHR: "តម្លៃ (រៀល)", emoji: "សញ្ញាអារម្មណ៍",
+    photo: "រូបភាព", saveItem: "រក្សាទុក", cancel: "បោះបង់", deleteItem: "លុបមុខម្ហូប",
+    noMenuItemsYet: "មិនទាន់មានមុខម្ហូបក្នុងមីនុយទេ", makeSureFirestoreRules: "សូមប្រាកដថា Firestore rules អនុញ្ញាតការអាន/សរសេរ បន្ទាប់មកបញ្ចូលមុខទីមួយ។",
+    addFirstItem: "+ បញ្ចូលមុខទីមួយ", menuExportedWithPhotos: "📥 បាននាំចេញមីនុយជាមួយរូបភាព",
+    addNewItem: "បញ្ចូលមុខម្ហូបថ្មី", tapToUploadPhoto: "ចុចដើម្បីផ្ទុករូបភាព",
+    changePhoto: "ប្តូររូបភាព", uploadPhoto: "ផ្ទុករូបភាព", removePhoto: "🗑️ លុបរូបភាព",
+    uploading: "កំពុងផ្ទុក…", itemNameRequired: "ឈ្មោះមុខម្ហូប *", categoryRequired: "ប្រភេទ *",
+    emojiFallback: "សញ្ញាអារម្មណ៍ (ប្រើពេលគ្មានរូបភាព)", priceUSDRequired: "តម្លៃដុល្លារ *",
+    autoConvertHint: "ដុល្លារបំប្លែងទៅជារៀលដោយស្វ័យប្រវត្តិ (អត្រា: 1$ = {rate}រ)។ អ្នកអាចកែតម្រូវរៀលដោយខ្លួនឯងបាន។",
+    saveChanges: "រក្សាទុកការផ្លាស់ប្តូរ", addToMenu: "បញ្ចូលទៅមីនុយ",
+    signedInAsAdmin: "✅ បានចូលគណនីជាអ្នកគ្រប់គ្រង", signedOut: "បានចាកចេញ",
+    pickBothDates: "សូមជ្រើសរើសកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់", startBeforeEnd: "កាលបរិច្ឆេទចាប់ផ្តើមត្រូវតែមុនកាលបរិច្ឆេទបញ្ចប់",
+    csvExported: "📥 បាននាំចេញ CSV", firestoreRulesBlockingUpdates: "❌ ច្បាប់ Firestore កំពុងរារាំងការកែប្រែ",
+    allOrdersDeleted: "បានលុបការកម្ម៉ង់ទាំងអស់", imageError: "កំហុសរូបភាព",
+    itemNameRequiredMsg: "ត្រូវការឈ្មោះមុខម្ហូប", categoryRequiredMsg: "ត្រូវការប្រភេទ",
+    priceMustBeGreater: "តម្លៃដុល្លារត្រូវធំជាង 0", itemUpdated: "✅ បានកែប្រែមុខម្ហូប!",
+    itemAddedToMenu: "✅ បានបញ្ចូលមុខម្ហូបទៅមីនុយ!", photoTooLarge: "រូបភាពធំពេក — សូមសាកល្បងរូបតូចជាងនេះ",
+    saveFailed: "រក្សាទុកមិនបាន", itemDeleted: "បានលុបមុខម្ហូប", deleteFailed: "លុបមិនបាន",
+    receiptDataNotAvailable: "ទិន្នន័យវិក្កយបត្រមិនមាន។ សូមបើកវិក្កយបត្រឡើងវិញ។",
+    setupTelegramFirst: "សូមកំណត់ Telegram bot token និង Chat ID ជាមុនសិន",
+    dailySummarySent: "✅ បានផ្ញើសេចក្តីសង្ខេបប្រចាំថ្ងៃ!", failed: "បរាជ័យ", unknownError: "កំហុសមិនស្គាល់",
+    telegramSaved: "✅ បានរក្សាទុក Telegram ក្នុង Firestore", printerConnected: "បានភ្ជាប់ម៉ាស៊ីនព្រីន!",
+    printed: "បានបោះពុម្ព!", printFailed: "បោះពុម្ពមិនបាន", connectPrinterFirst: "សូមភ្ជាប់ម៉ាស៊ីនព្រីនជាមុនសិន",
+    qrNotReady: "កូដ QR មិនទាន់រួចរាល់ទេ", settingsSaved: "✅ បានរក្សាទុកការកំណត់",
+    useChromeAndroidDesktop: "សូមប្រើ Chrome លើ Android ឬ Chrome desktop",
+    searchingForPrinter: "កំពុងស្វែងរកម៉ាស៊ីនព្រីន...", connectingTo: "កំពុងភ្ជាប់ទៅ",
+    connected: "បានភ្ជាប់", printTestPage: "បោះពុម្ពទំព័រសាកល្បង",
+    printerDisconnected: "ម៉ាស៊ីនព្រីនបានផ្តាច់។ ចុចដើម្បីភ្ជាប់ឡើងវិញ។",
+    enterBotTokenChatId: "សូមបញ្ចូល bot token និង chat ID ជាមុនសិន", testSentCheckTelegram: "បានផ្ញើសាកល្បង! សូមពិនិត្យ Telegram។",
+    takingLonger: "ការផ្ទុកយូរជាងធម្មតា…", enterEmailPassword: "សូមបញ្ចូលអ៊ីមែល និងពាក្យសម្ងាត់",
+    signingIn: "កំពុងចូលគណនី…", wrongEmailPassword: "អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ",
+    orderReceipt: "វិក្កយបត្រការកម្ម៉ង់", date: "កាលបរិច្ឆេទ", paidLabel: "✓ បានបង់ប្រាក់", unpaidLabel: "⚠ មិនទាន់បង់ប្រាក់",
+    note: "កំណត់សម្គាល់", thankYouPleaseComeAgain: "☕ សូមអរគុណ! សូមអញ្ជើញមកម្តងទៀត 🙏",
+    qrMenuGenerator: "បង្កើតកូដ QR មីនុយ", onePerTable: "មួយកូដ QR ក្នុងមួយតុ", selectTable: "ជ្រើសរើសតុ",
+    telegramAlertBot: "Telegram ផ្ញើការជូនដំណឹង", savedToFirestore: "បានរក្សាទុកក្នុង Firestore",
+    botToken: "Bot Token", chatId: "Chat ID", save: "រក្សាទុក", test: "សាកល្បង",
+    bluetoothPrinter: "ម៉ាស៊ីនព្រីន Bluetooth", chromeOnly: "សម្រាប់ Chrome តែប៉ុណ្ណោះ", connectPrinter: "ភ្ជាប់ម៉ាស៊ីនព្រីន",
+    restaurantSettings: "ការកំណត់ហាង", name: "ឈ្មោះ", addressTagline: "អាសយដ្ឋាន / ពាក្យស្លោក",
+    taxRate: "អត្រាពន្ធ (%)", tableNumber: "លេខតុ",
+    orderNotFound: "រកមិនឃើញការកម្ម៉ង់", receiptNotFound: "រកមិនឃើញវិក្កយបត្រ។ សាកល្បងម្តងទៀត។",
+    close: "បិទ", thankYouVisiting: "សូមអរគុណសម្រាប់ការមកលេង!", pleaseComeAgain: "សូមអញ្ជើញមកម្តងទៀត",
+    paymentPending: "កំពុងរង់ចាំការបង់ប្រាក់",
+    loadingReceipt: "កំពុងផ្ទុកវិក្កយបត្រ…", paymentCollected: "✅ បានទទួលប្រាក់!",
+    error: "កំហុស", firestoreRulesBlocking: "❌ ច្បាប់ Firestore កំពុងរារាំងការកែប្រែនេះ — សូមមើលជូនដំណឹងខាងក្រោម",
+  }
+};
+let currentLang = localStorage.getItem("bbc_lang") || "en";
+function tr(key) { return (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key; }
+window.setLang = (lang) => {
+  currentLang = lang;
+  localStorage.setItem("bbc_lang", lang);
+  applyStaticTranslations();
+  if (document.getElementById("page-menu")?.classList.contains("active")) renderMenuItems();
+  if (document.getElementById("page-cart")?.classList.contains("active")) renderCart();
+  if (document.getElementById("page-admin")?.classList.contains("active")) renderAdmin();
+  if (document.getElementById("page-setup")?.classList.contains("active") && document.getElementById("table-grid")) initQR();
+  updateHeader();
+};
+function applyStaticTranslations() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = tr(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+    el.setAttribute("placeholder", tr(el.getAttribute("data-i18n-placeholder")));
+  });
+  document.querySelectorAll(".lang-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.lang === currentLang));
+}
+
 /* ─── STATE ─── */
 let menuItems      = [];
 let cart           = [];
@@ -58,6 +248,10 @@ const tgDoc       = () => doc(db, "config", "telegram");
 
 /* ─── BOOT ─── */
 async function boot() {
+  // Apply saved language preference (static HTML labels) before anything renders,
+  // so a returning customer/admin sees their chosen language from the first frame.
+  applyStaticTranslations();
+
   showLoading(true);
 
   // Safety timeout — show app within 5 seconds regardless
@@ -71,7 +265,7 @@ async function boot() {
     const skip = document.getElementById("loading-skip");
     const msg  = document.getElementById("loading-msg");
     if (skip) skip.style.display = "block";
-    if (msg)  msg.textContent = "Taking longer than expected…";
+    if (msg)  msg.textContent = tr("takingLonger");
   }, 2500);
 
   // Read ?table=N from URL — set when customer scans QR code
@@ -105,7 +299,7 @@ function updateAdminUI() {
   const label = document.getElementById("admin-auth-label");
   if (!btn) return;
   if (currentAdmin) {
-    btn.textContent = "🚪 Sign Out";
+    btn.textContent = "🚪 " + tr("signOut");
     btn.classList.add("signed-in");
     btn.onclick = doSignOut;
     if (label) {
@@ -117,7 +311,7 @@ function updateAdminUI() {
       renderAdmin();
     }
   } else {
-    btn.textContent = "🔑 Login";
+    btn.textContent = "🔑 " + tr("signIn");
     btn.classList.remove("signed-in");
     btn.onclick = showLoginModal;
     if (label) label.textContent = "";
@@ -144,25 +338,25 @@ window.doLogin = async () => {
   const password = document.getElementById("login-password").value;
   const errEl    = document.getElementById("login-error");
   const btn      = document.getElementById("login-btn");
-  if (!email || !password) { errEl.textContent = "Enter email and password"; return; }
-  btn.disabled = true; btn.textContent = "Signing in…";
+  if (!email || !password) { errEl.textContent = tr("enterEmailPassword"); return; }
+  btn.disabled = true; btn.textContent = tr("signingIn");
   try {
     await signInWithEmailAndPassword(auth, email, password);
     closeLoginModal();
-    toast("✅ Signed in as admin");
+    toast(tr("signedInAsAdmin"));
     // Re-render admin page to show all tabs
     if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
   } catch(e) {
     errEl.textContent = e.code === "auth/invalid-credential"
-      ? "Wrong email or password"
+      ? tr("wrongEmailPassword")
       : e.message;
   }
-  btn.disabled = false; btn.textContent = "Sign In";
+  btn.disabled = false; btn.textContent = tr("signIn");
 };
 
 window.doSignOut = async () => {
   await signOut(auth);
-  toast("Signed out");
+  toast(tr("signedOut"));
   // Switch to menu if on admin page
   switchPage("menu");
 };
@@ -286,8 +480,8 @@ function renderMenuItems() {
     document.getElementById("menu-list").innerHTML =
       `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text3)">
         <div style="font-size:40px;margin-bottom:10px">☕</div>
-        <div style="font-size:14px;font-weight:600">No items yet</div>
-        <div style="font-size:12px;margin-top:4px">Go to Admin → Menu to add your first item</div>
+        <div style="font-size:14px;font-weight:600">${tr("noItemsYet")}</div>
+        <div style="font-size:12px;margin-top:4px">${tr("goToAdminToAdd")}</div>
       </div>`;
     updateCartFloat();
     return;
@@ -341,7 +535,7 @@ function updateCartFloat() {
   const badge = document.getElementById("nav-cart-badge");
   if (count > 0) {
     fl.style.display = "block";
-    document.getElementById("float-left").textContent = `🛒 View Cart (${count})`;
+    document.getElementById("float-left").textContent = `🛒 ${tr("viewCart")} (${count})`;
     document.getElementById("float-right").textContent = `$${total.toFixed(2)}`;
     badge.style.display = "block"; badge.textContent = count;
   } else { fl.style.display = "none"; badge.style.display = "none"; }
@@ -352,8 +546,8 @@ function renderCart() {
   const el = document.getElementById("cart-body");
   if (cart.length === 0) {
     el.innerHTML = `<div class="cart-empty"><div class="empty-icon">🛒</div>
-      <h3>Cart is empty</h3><p>Browse the menu and add items</p>
-      <button class="btn btn-green" style="max-width:200px;margin:0 auto" onclick="switchPage('menu')">View Menu</button></div>`;
+      <h3>${tr("cartEmpty")}</h3><p>${tr("browseAndAdd")}</p>
+      <button class="btn btn-green" style="max-width:200px;margin:0 auto" onclick="switchPage('menu')">${tr("viewMenu")}</button></div>`;
     return;
   }
   const sub    = cart.reduce((s, c) => s + (Number(c.priceUSD)||0) * c.qty, 0);
@@ -362,7 +556,7 @@ function renderCart() {
   const total  = sub + tax;
   const totalKHR = subKHR + Math.round(subKHR * settings.tax / 100);
   el.innerHTML = `
-    <div class="section-label" style="margin-top:4px">Your order · Table ${settings.table}</div>
+    <div class="section-label" style="margin-top:4px">${tr("yourOrder")} · ${tr("table")} ${settings.table}</div>
     ${cart.map(ci => {
       const usd = Number(ci.priceUSD)||0;
       const khr = ci.priceKHR ? Number(ci.priceKHR) : Math.round(usd * KHR_RATE);
@@ -387,19 +581,19 @@ function renderCart() {
       </div>`;
     }).join("")}
     <div class="order-note-wrap">
-      <div class="order-note-label">Special requests / allergies</div>
-      <textarea class="order-note-input" id="order-note" rows="2" placeholder="e.g. less sugar, no ice..."></textarea>
+      <div class="order-note-label">${tr("specialRequests")}</div>
+      <textarea class="order-note-input" id="order-note" rows="2" placeholder="${tr("specialRequestsPlaceholder")}"></textarea>
     </div>
     <div class="order-summary">
-      <div class="summary-row"><span>Subtotal</span><span>$${sub.toFixed(2)} <span style="color:var(--text3);font-size:11px">/ ${subKHR.toLocaleString()}រ</span></span></div>
-      ${settings.tax > 0 ? `<div class="summary-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
+      <div class="summary-row"><span>${tr("subtotal")}</span><span>$${sub.toFixed(2)} <span style="color:var(--text3);font-size:11px">/ ${subKHR.toLocaleString()}រ</span></span></div>
+      ${settings.tax > 0 ? `<div class="summary-row"><span>${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
       <hr class="summary-divider">
-      <div class="summary-total"><span>Total</span><span>$${total.toFixed(2)}</span></div>
+      <div class="summary-total"><span>${tr("total")}</span><span>$${total.toFixed(2)}</span></div>
       <div style="text-align:right;font-size:13px;color:var(--text3);margin-top:2px">${totalKHR.toLocaleString()} រៀល</div>
     </div>
     <div style="margin-top:12px">
-      <button class="btn btn-green" id="place-btn" onclick="placeOrder()">✓ Place Order</button>
-      <button class="btn btn-outline" onclick="switchPage('menu')">← Continue Ordering</button>
+      <button class="btn btn-green" id="place-btn" onclick="placeOrder()">✓ ${tr("placeOrder")}</button>
+      <button class="btn btn-outline" onclick="switchPage('menu')">${tr("continueOrdering")}</button>
     </div>`;
 }
 
@@ -408,7 +602,7 @@ window.cartQty = (id, delta) => { changeQty(id, delta); renderCart(); };
 window.placeOrder = async () => {
   if (!cart.length) return;
   const btn = document.getElementById("place-btn");
-  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  if (btn) { btn.disabled = true; btn.textContent = tr("sending"); }
   const note  = document.getElementById("order-note")?.value || "";
   const sub   = cart.reduce((s, c) => s + (Number(c.priceUSD)||0) * c.qty, 0);
   const subKHR = cart.reduce((s, c) => s + (c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE)) * c.qty, 0);
@@ -436,10 +630,10 @@ window.placeOrder = async () => {
     document.getElementById("cart-body").innerHTML = `
       <div class="confirm-wrap">
         <div class="confirm-icon">✅</div>
-        <div class="confirm-title">Order Sent!</div>
+        <div class="confirm-title">${tr("orderSent")}</div>
         <div class="confirm-sub">
-          Table ${order.table}<br>
-          <span style="font-size:13px;color:var(--text3)">Please wait, staff will serve you shortly.</span>
+          ${tr("table")} ${order.table}<br>
+          <span style="font-size:13px;color:var(--text3)">${tr("pleaseWaitStaff")}</span>
         </div>
         <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:16px 0;text-align:left">
           ${order.items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">
@@ -447,19 +641,19 @@ window.placeOrder = async () => {
             <span style="font-weight:600;color:var(--green)">$${((i.priceUSD||0)*i.qty).toFixed(2)}</span>
           </div>`).join("")}
           <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:10px;margin-top:4px">
-            <span>Total</span>
+            <span>${tr("total")}</span>
             <span>$${(order.totalUSD).toFixed(2)} <span style="font-size:11px;font-weight:400;color:var(--text3)">/ ${order.totalKHR.toLocaleString()}រ</span></span>
           </div>
         </div>
         <div class="confirm-btns">
           <button class="btn btn-green" onclick="switchPage('menu')">
-            ← Order More Items
+            ${tr("orderMoreItems")}
           </button>
         </div>
       </div>`;
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = "Place Order"; }
-    toast("Error: " + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = tr("placeOrder"); }
+    toast(tr("error") + ": " + e.message);
   }
 };
 
@@ -482,15 +676,15 @@ function renderAdmin() {
     el.innerHTML = `
       <div style="text-align:center;padding:48px 20px">
         <div style="font-size:48px;margin-bottom:14px">🔒</div>
-        <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text)">Admin Access Required</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text)">${tr("adminAccessRequired")}</div>
         <div style="font-size:13px;color:var(--text3);margin-bottom:24px;line-height:1.6">
-          Sign in to manage orders, view stats,<br>and edit the menu.
+          ${tr("signInToManage")}
         </div>
         <button class="btn btn-green" style="max-width:220px;margin:0 auto" onclick="showLoginModal()">
-          🔑 Sign In as Admin
+          ${tr("signInAsAdmin")}
         </button>
         <div style="margin-top:16px;font-size:12px;color:var(--text3)">
-          Customers can order from the Menu tab<br>without signing in.
+          ${tr("customersCanOrder")}
         </div>
       </div>`;
     return;
@@ -504,7 +698,7 @@ function renderAdmin() {
   if (!list.length) {
     el.innerHTML = `<div class="empty-admin">
       <div style="font-size:40px">${activeAdminTab==="live"?"🍳":"📋"}</div>
-      <div style="margin-top:10px;font-size:13px">${activeAdminTab==="live"?"No active orders":"No paid orders yet"}</div>
+      <div style="margin-top:10px;font-size:13px">${activeAdminTab==="live"?tr("noActiveOrders"):tr("noPaidOrdersYet")}</div>
     </div>`;
     return;
   }
@@ -516,11 +710,11 @@ function renderAdmin() {
     const totalKHR = o.totalKHR || Math.round(totalUSD * KHR_RATE);
     const stMap = { pending:"st-pending", preparing:"st-preparing", ready:"st-ready", paid:"st-paid" };
     const st = o.paid ? "paid" : o.status;
-    const stLabel = { pending:"⏳ Pending", preparing:"👨‍🍳 Preparing", ready:"✅ Ready", paid:"💰 Paid" };
+    const stLabel = { pending:"⏳ "+tr("pending"), preparing:"👨‍🍳 "+tr("preparing"), ready:"✅ "+tr("ready"), paid:"💰 "+tr("paid") };
     return `<div class="order-card${o.status==='ready'&&!o.paid?' order-card-highlight':''}">
       <div class="order-card-header">
         <div>
-          <div class="order-card-id">Table ${o.table}</div>
+          <div class="order-card-id">${tr("table")} ${o.table}</div>
           <div class="order-card-time">${ds} · ${ts}</div>
         </div>
         <span class="status-pill ${stMap[st]}">${stLabel[st]||st}</span>
@@ -534,7 +728,7 @@ function renderAdmin() {
           <span style="font-weight:600">$${((i.priceUSD||0)*i.qty).toFixed(2)}</span>
         </div>`).join("")}
         <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding-top:8px">
-          <span>Total</span>
+          <span>${tr("total")}</span>
           <div style="text-align:right">
             <div style="color:var(--green)">$${totalUSD.toFixed(2)}</div>
             <div style="font-size:11px;font-weight:400;color:var(--text3)">${totalKHR.toLocaleString()}រ</div>
@@ -554,26 +748,26 @@ function renderAdmin() {
             onclick="setStatus('${o.firestoreId}','preparing')"
             style="${o.status==='preparing'||o.status==='ready'?'opacity:.45;cursor:default':''}"
             ${o.status==='preparing'||o.status==='ready'?'disabled':''}>
-            👨‍🍳 Preparing
+            👨‍🍳 ${tr("preparing")}
           </button>
           <button class="order-action-btn${o.status==='preparing'?' active-step':''}"
             onclick="setStatus('${o.firestoreId}','ready')"
             style="${o.status==='ready'?'opacity:.45;cursor:default':''}"
             ${o.status==='ready'?'disabled':''}>
-            ✅ Ready
+            ✅ ${tr("ready")}
           </button>
         </div>
         <button class="pay-collect-btn${o.status==='ready'?'':' pay-collect-dim'}"
           onclick="collectPayment('${o.firestoreId}')">
-          💰 Collect Payment &amp; Print · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
+          💰 ${tr("collectPaymentPrint")} · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
         </button>` : `
         <!-- Paid — show print only -->
         <div style="background:var(--green-light);border-radius:var(--radius-sm);padding:8px 12px;text-align:center;font-size:12px;font-weight:600;color:var(--green-text)">
-          ✅ PAID · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
+          ✅ ${tr("paid").toUpperCase()} · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
         </div>`}
 
         <button class="order-action-btn" style="width:100%;justify-content:center" onclick="printReceiptDirect('${o.firestoreId}')">
-          🖨️ Print Receipt
+          🖨️ ${tr("printReceipt")}
         </button>
 
       </div>
@@ -632,18 +826,18 @@ window.setStatsRange = (range, el) => {
 window.applyCustomStatsRange = () => {
   statsFrom = document.getElementById("stats-from").value;
   statsTo   = document.getElementById("stats-to").value;
-  if (!statsFrom || !statsTo) { toast("Pick both start and end dates"); return; }
-  if (statsFrom > statsTo) { toast("Start date must be before end date"); return; }
+  if (!statsFrom || !statsTo) { toast(tr("pickBothDates")); return; }
+  if (statsFrom > statsTo) { toast(tr("startBeforeEnd")); return; }
   statsRange = "custom";
   renderStats(document.getElementById("admin-body"));
 };
 
 function statsRangeLabel() {
-  const labels = { today:"Today", week:"This Week", month:"This Month", all:"All Time" };
+  const labels = { today:tr("today"), week:tr("thisWeek"), month:tr("thisMonth"), all:tr("allTime") };
   if (statsRange === "custom" && statsFrom && statsTo) {
     return `${statsFrom} → ${statsTo}`;
   }
-  return labels[statsRange] || "All Time";
+  return labels[statsRange] || tr("allTime");
 }
 
 function renderStats(el) {
@@ -665,55 +859,55 @@ function renderStats(el) {
     byMethodCount[m]++;
   });
 
-  const presets = [["today","Today"],["week","This Week"],["month","This Month"],["all","All Time"]];
+  const presets = [["today",tr("today")],["week",tr("thisWeek")],["month",tr("thisMonth")],["all",tr("allTime")]];
 
   el.innerHTML = `
-    <div class="admin-section-title" style="margin-top:0">Date Range</div>
+    <div class="admin-section-title" style="margin-top:0">${tr("dateRange")}</div>
     <div class="cat-row" style="margin-bottom:8px">
       ${presets.map(([v,label])=>`<button class="cat-chip stats-range-chip${statsRange===v?" active":""}" onclick="setStatsRange('${v}',this)">${label}</button>`).join("")}
-      <button class="cat-chip stats-range-chip${statsRange==="custom"?" active":""}" onclick="setStatsRange('custom',this)">📅 Custom</button>
+      <button class="cat-chip stats-range-chip${statsRange==="custom"?" active":""}" onclick="setStatsRange('custom',this)">📅 ${tr("custom")}</button>
     </div>
     <div id="stats-custom-row" style="display:${statsRange==="custom"?"flex":"none"};gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
       <div class="form-group" style="margin:0;flex:1;min-width:130px">
-        <label class="form-label">From</label>
+        <label class="form-label">${tr("from")}</label>
         <input class="form-input" type="date" id="stats-from" value="${statsFrom}">
       </div>
       <div class="form-group" style="margin:0;flex:1;min-width:130px">
-        <label class="form-label">To</label>
+        <label class="form-label">${tr("to")}</label>
         <input class="form-input" type="date" id="stats-to" value="${statsTo}">
       </div>
-      <button class="sm-btn green" style="height:38px" onclick="applyCustomStatsRange()">Apply</button>
+      <button class="sm-btn green" style="height:38px" onclick="applyCustomStatsRange()">${tr("apply")}</button>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin:-6px 0 12px;text-align:center">Showing: <strong style="color:var(--text2)">${statsRangeLabel()}</strong></div>
+    <div style="font-size:11px;color:var(--text3);margin:-6px 0 12px;text-align:center">${tr("showing")}: <strong style="color:var(--text2)">${statsRangeLabel()}</strong></div>
 
     <div class="stats-grid">
-      <div class="stat-box"><div class="stat-num">${scoped.length}</div><div class="stat-label">Orders</div></div>
-      <div class="stat-box"><div class="stat-num">${paid.length}</div><div class="stat-label">Paid</div></div>
-      <div class="stat-box"><div class="stat-num">$${rev.toFixed(0)}</div><div class="stat-label">Revenue</div></div>
+      <div class="stat-box"><div class="stat-num">${scoped.length}</div><div class="stat-label">${tr("orders")}</div></div>
+      <div class="stat-box"><div class="stat-num">${paid.length}</div><div class="stat-label">${tr("paid")}</div></div>
+      <div class="stat-box"><div class="stat-num">$${rev.toFixed(0)}</div><div class="stat-label">${tr("revenue")}</div></div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;text-align:center">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Total Revenue (KHR)</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:2px">${tr("totalRevenueKHR")}</div>
       <div style="font-size:20px;font-weight:700;color:var(--green)">${revKHR.toLocaleString()} រៀល</div>
     </div>
 
-    <div class="admin-section-title">Payment Methods</div>
+    <div class="admin-section-title">${tr("paymentMethods")}</div>
     <div class="stats-grid">
-      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.cash.toFixed(0)}</div><div class="stat-label">💵 Cash (${byMethodCount.cash})</div></div>
-      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.card.toFixed(0)}</div><div class="stat-label">💳 Card (${byMethodCount.card})</div></div>
-      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.qr.toFixed(0)}</div><div class="stat-label">📲 QR (${byMethodCount.qr})</div></div>
+      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.cash.toFixed(0)}</div><div class="stat-label">💵 ${tr("cash")} (${byMethodCount.cash})</div></div>
+      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.card.toFixed(0)}</div><div class="stat-label">💳 ${tr("card")} (${byMethodCount.card})</div></div>
+      <div class="stat-box"><div class="stat-num" style="font-size:16px">$${byMethod.qr.toFixed(0)}</div><div class="stat-label">📲 ${tr("qrPay")} (${byMethodCount.qr})</div></div>
     </div>
 
-    <div class="admin-section-title">Top Items</div>
-    ${top.length ? top.map(([n,q])=>`<div class="top-item-row"><span>${n}</span><span class="top-item-count">${q}×</span></div>`).join("") : "<div style='color:var(--text3);font-size:13px;padding:8px 0'>No orders in this range</div>"}
-    <div class="admin-section-title" style="margin-top:20px">Actions</div>
-    <button class="sm-btn" style="width:100%;justify-content:center" onclick="sendDailySummary()">📤 Send Daily Summary to Telegram</button>
-    <button class="sm-btn" style="margin-top:8px" onclick="exportStatsCSV()">📥 Export CSV (this range)</button>
-    <button class="sm-btn" style="color:var(--red);border-color:var(--red);margin-top:8px" onclick="clearAllOrders()">🗑️ Delete All Orders</button>`;
+    <div class="admin-section-title">${tr("topItems")}</div>
+    ${top.length ? top.map(([n,q])=>`<div class="top-item-row"><span>${n}</span><span class="top-item-count">${q}×</span></div>`).join("") : `<div style='color:var(--text3);font-size:13px;padding:8px 0'>${tr("noOrdersInRange")}</div>`}
+    <div class="admin-section-title" style="margin-top:20px">${tr("actions")}</div>
+    <button class="sm-btn" style="width:100%;justify-content:center" onclick="sendDailySummary()">${tr("sendDailySummary")}</button>
+    <button class="sm-btn" style="margin-top:8px" onclick="exportStatsCSV()">${tr("exportCSV")}</button>
+    <button class="sm-btn" style="color:var(--red);border-color:var(--red);margin-top:8px" onclick="clearAllOrders()">${tr("deleteAllOrders")}</button>`;
 }
 
 window.exportStatsCSV = () => {
   const scoped = filterOrdersByStatsRange(orders);
-  if (!scoped.length) { toast("No orders in this range"); return; }
+  if (!scoped.length) { toast(tr("noOrdersInRange")); return; }
   const headers = ["Order ID","Table","Items","Subtotal USD","Tax USD","Total USD","Total KHR","Payment Method","Cash Received USD","Cash Received KHR","Change USD","Change KHR","Status","Time"];
   const rows = scoped.map(o => [
     o.firestoreId || "",
@@ -737,22 +931,22 @@ window.exportStatsCSV = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `bluebean-orders-${statsRangeLabel().replace(/[^a-z0-9]+/gi,"-")}.csv`;
   a.click();
-  toast("📥 CSV exported");
+  toast(tr("csvExported"));
 };
 
 
 window.setStatus = async (id, status) => {
   try { await updateDoc(doc(db,"orders",id), { status }); }
   catch(e) {
-    if (e.code === "permission-denied") { showFirestoreFixBanner(); toast("❌ Firestore rules are blocking updates"); }
-    else toast("Error: "+e.message);
+    if (e.code === "permission-denied") { showFirestoreFixBanner(); toast(tr("firestoreRulesBlockingUpdates")); }
+    else toast(tr("error") + ": "+e.message);
   }
 };
 
 // Collect payment — opens Payment modal (method + cash calculator) instead of paying instantly
 window.collectPayment = id => {
   const o = orders.find(o => o.firestoreId === id);
-  if (!o) { toast("Order not found"); return; }
+  if (!o) { toast(tr("orderNotFound")); return; }
   openPaymentModal(o);
 };
 
@@ -766,7 +960,7 @@ function openPaymentModal(o) {
   const totalUSD = o.totalUSD || o.total || 0;
   const totalKHR = o.totalKHR || Math.round(totalUSD * KHR_RATE);
 
-  document.getElementById("pm-order-meta").textContent = `Table ${o.table} · Order #${o.firestoreId.slice(-5).toUpperCase()}`;
+  document.getElementById("pm-order-meta").textContent = `${tr("table")} ${o.table} · Order #${o.firestoreId.slice(-5).toUpperCase()}`;
   document.getElementById("pm-amount-due").textContent = `$${totalUSD.toFixed(2)}`;
   document.getElementById("pm-amount-due-khr").textContent = `${totalKHR.toLocaleString()} រៀល`;
   document.getElementById("pm-cash-received-usd").value = "";
@@ -776,7 +970,7 @@ function openPaymentModal(o) {
   document.getElementById("pm-change").style.color = "var(--green-dark)";
   document.getElementById("pm-change-warn").style.display = "none";
   document.getElementById("pm-confirm-btn").disabled = true;
-  document.getElementById("pm-confirm-btn").textContent = "✓ Confirm Payment Received";
+  document.getElementById("pm-confirm-btn").textContent = tr("confirmPaymentReceived");
 
   // Reset method buttons to Cash
   document.querySelectorAll(".pay-method-btn").forEach(b => b.classList.toggle("active", b.dataset.method === "cash"));
@@ -874,7 +1068,7 @@ window.confirmPayment = async () => {
   if (!o) return;
   const totalUSD = o.totalUSD || o.total || 0;
   const btn = document.getElementById("pm-confirm-btn");
-  btn.disabled = true; btn.textContent = "Processing…";
+  btn.disabled = true; btn.textContent = tr("processing");
 
   const payload = {
     paid: true, status: "paid", paidAt: new Date().toISOString(),
@@ -904,7 +1098,7 @@ window.confirmPayment = async () => {
     const paidOrderId = pmOrderId;
     const paidOrder = updated ? { ...updated } : { ...o, ...payload };
     closePaymentModal();
-    toast("✅ Payment collected!");
+    toast(tr("paymentCollected"));
     // Re-render the order list right away so the card flips to "Paid"
     // immediately, instead of waiting for the Firestore snapshot round-trip.
     if (document.getElementById("page-admin").classList.contains("active") && activeAdminTab !== "menu" && activeAdminTab !== "stats") {
@@ -914,12 +1108,12 @@ window.confirmPayment = async () => {
     // this never depends on finding it in `orders` again.
     showReceipt(paidOrderId, 3, paidOrder);
   } catch(e) {
-    btn.disabled = false; btn.textContent = "✓ Confirm Payment Received";
+    btn.disabled = false; btn.textContent = tr("confirmPaymentReceived");
     if (e.code === "permission-denied") {
-      toast("❌ Firestore rules are blocking this update — see banner below");
+      toast(tr("firestoreRulesBlocking"));
       showFirestoreFixBanner();
     } else {
-      toast("Error: " + e.message);
+      toast(tr("error") + ": " + e.message);
     }
   }
 };
@@ -932,7 +1126,7 @@ window.closePaymentModal = () => {
 // Print receipt directly without opening modal first
 window.printReceiptDirect = id => {
   const o = orders.find(o => o.firestoreId === id);
-  if (!o) { toast("Order not found"); return; }
+  if (!o) { toast(tr("orderNotFound")); return; }
   activeReceiptId = id;
   doPrint(o);
 };
@@ -942,8 +1136,8 @@ window.clearAllOrders = async () => {
   try {
     const snap = await getDocs(ordersCol());
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
-    toast("All orders deleted");
-  } catch(e) { toast("Error: "+e.message); }
+    toast(tr("allOrdersDeleted"));
+  } catch(e) { toast(tr("error") + ": "+e.message); }
 };
 
 /* ─── MENU MANAGER ─── */
@@ -955,18 +1149,18 @@ function renderMenuManager() {
   // items list
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
-      <div style="font-size:14px;font-weight:700;color:var(--text)">${menuItems.length} Menu Items</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text)">${menuItems.length} ${tr("menuItems")}</div>
       <div style="display:flex;gap:8px">
-        ${menuItems.length > 0 ? `<button class="sm-btn" onclick="exportMenuData()">📥 Export Menu</button>` : ""}
-        <button class="btn-add-item" onclick="openAddForm()">+ Add Item</button>
+        ${menuItems.length > 0 ? `<button class="sm-btn" onclick="exportMenuData()">${tr("exportMenu")}</button>` : ""}
+        <button class="btn-add-item" onclick="openAddForm()">${tr("addItem")}</button>
       </div>
     </div>
     ${menuItems.length === 0
       ? `<div class="empty-admin" style="padding:20px 10px">
           <div style="font-size:40px">🍽️</div>
-          <div style="font-size:14px;font-weight:700;margin:10px 0 6px;color:var(--text)">No menu items yet</div>
-          <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Make sure Firestore rules allow read/write, then add your first item.</div>
-          <button class="btn-add-item" onclick="openAddForm()" style="padding:12px 28px;font-size:14px">+ Add First Item</button>
+          <div style="font-size:14px;font-weight:700;margin:10px 0 6px;color:var(--text)">${tr("noMenuItemsYet")}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:16px">${tr("makeSureFirestoreRules")}</div>
+          <button class="btn-add-item" onclick="openAddForm()" style="padding:12px 28px;font-size:14px">${tr("addFirstItem")}</button>
           <div style="margin-top:20px;background:#f8f8f4;border-radius:10px;padding:14px;text-align:left;font-size:12px;color:var(--text2);line-height:1.8">
             <div style="font-weight:700;margin-bottom:6px">📋 Firestore Setup (one-time)</div>
             <div>1. Go to <a href="https://console.firebase.google.com/project/blue-bean-coffee-ec0c3/firestore/rules" target="_blank" style="color:var(--green);font-weight:600">Firebase Console → Rules</a></div>
@@ -1006,7 +1200,7 @@ window.openAddForm = () => {
    each item's photo (already a base64 data-URI) renders inline, no external files
    needed. Grouped by category, shows both USD and KHR prices, printable. */
 window.exportMenuData = () => {
-  if (!menuItems.length) { toast("No menu items to export"); return; }
+  if (!menuItems.length) { toast(tr("noMenuItemsToExport")); return; }
 
   const cats = [...new Set(menuItems.map(m => m.cat || "Uncategorized"))];
   const sections = cats.map(cat => {
@@ -1064,7 +1258,7 @@ window.exportMenuData = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `${(settings.name || "menu").replace(/[^a-z0-9]+/gi, "-")}-menu-export.html`;
   a.click();
-  toast("📥 Menu exported with photos");
+  toast(tr("menuExportedWithPhotos"));
 };
 
 window.openEditForm = id => {
@@ -1084,65 +1278,65 @@ function renderMenuForm(el) {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
       <button class="icon-btn" onclick="cancelMenuForm()" style="font-size:18px">←</button>
-      <div style="font-size:15px;font-weight:700">${item ? "Edit Item" : "Add New Item"}</div>
+      <div style="font-size:15px;font-weight:700">${item ? tr("editItem") : tr("addNewItem")}</div>
     </div>
 
     <!-- Photo upload -->
     <div class="form-group">
-      <label class="form-label">Photo</label>
+      <label class="form-label">${tr("photo")}</label>
       <div id="photo-preview" style="margin-bottom:8px">
         ${item && item.photoBase64
           ? `<img src="${item.photoBase64}" id="preview-img" style="width:100%;height:160px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)"/>`
           : `<div id="preview-placeholder" style="width:100%;height:120px;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);cursor:pointer" onclick="document.getElementById('photo-input').click()">
                <span style="font-size:32px">📷</span>
-               <span style="font-size:12px">Tap to upload photo</span>
+               <span style="font-size:12px">${tr("tapToUploadPhoto")}</span>
              </div>`}
       </div>
       <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="previewPhoto(this)">
       <button class="sm-btn" onclick="document.getElementById('photo-input').click()" style="width:100%;justify-content:center">
-        📷 ${item && item.photoBase64 ? "Change Photo" : "Upload Photo"}
+        📷 ${item && item.photoBase64 ? tr("changePhoto") : tr("uploadPhoto")}
       </button>
-      ${item && item.photoBase64 ? `<button class="sm-btn" onclick="removePhoto()" style="width:100%;justify-content:center;margin-top:6px;color:var(--red);border-color:var(--red)">🗑️ Remove Photo</button>` : ""}
-      <div id="upload-progress" style="display:none;margin-top:8px;font-size:12px;color:var(--text3)">Uploading…</div>
+      ${item && item.photoBase64 ? `<button class="sm-btn" onclick="removePhoto()" style="width:100%;justify-content:center;margin-top:6px;color:var(--red);border-color:var(--red)">${tr("removePhoto")}</button>` : ""}
+      <div id="upload-progress" style="display:none;margin-top:8px;font-size:12px;color:var(--text3)">${tr("uploading")}</div>
     </div>
 
     <div class="form-group">
-      <label class="form-label">Item Name *</label>
+      <label class="form-label">${tr("itemNameRequired")}</label>
       <input class="form-input" type="text" id="fi-name" value="${item ? item.name : ""}" placeholder="e.g. Iced Latte">
     </div>
     <div class="form-group">
-      <label class="form-label">Category *</label>
+      <label class="form-label">${tr("categoryRequired")}</label>
       <input class="form-input" type="text" id="fi-cat" value="${item ? item.cat||"" : ""}" placeholder="e.g. Coffee, Food, Drinks" list="cat-list">
       <datalist id="cat-list">
         ${[...new Set(menuItems.map(m=>m.cat).filter(Boolean))].map(c=>`<option value="${c}">`).join("")}
       </datalist>
     </div>
     <div class="form-group">
-      <label class="form-label">Emoji (fallback if no photo)</label>
+      <label class="form-label">${tr("emojiFallback")}</label>
       <input class="form-input" type="text" id="fi-emoji" value="${item ? item.emoji||"" : ""}" placeholder="☕" maxlength="4">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
-        <label class="form-label">Price USD *</label>
+        <label class="form-label">${tr("priceUSDRequired")}</label>
         <div style="position:relative">
           <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px">$</span>
           <input class="form-input" type="number" id="fi-usd" value="${usd}" placeholder="0.00" step="0.01" min="0" style="padding-left:22px" oninput="autoKHR()">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Price KHR</label>
+        <label class="form-label">${tr("priceKHR")}</label>
         <div style="position:relative">
           <input class="form-input" type="number" id="fi-khr" value="${khr}" placeholder="0" step="100" min="0" style="padding-right:22px">
           <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px">រ</span>
         </div>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:12px">USD auto-converts to KHR (rate: 1$ = ${KHR_RATE.toLocaleString()}រ). You can override KHR manually.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:12px">${tr("autoConvertHint").replace("{rate}", KHR_RATE.toLocaleString())}</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-      <button class="btn btn-outline" onclick="cancelMenuForm()">Cancel</button>
+      <button class="btn btn-outline" onclick="cancelMenuForm()">${tr("cancel")}</button>
       <button class="btn btn-green" id="save-item-btn" onclick="saveMenuItem()">
-        ${item ? "Save Changes" : "Add to Menu"}
+        ${item ? tr("saveChanges") : tr("addToMenu")}
       </button>
     </div>`;
 
@@ -1191,7 +1385,7 @@ window.previewPhoto = async input => {
       `<img src="${base64}" id="preview-img" style="width:100%;height:160px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)"/>`;
     // store base64 on the input element for saveMenuItem to pick up
     input._base64 = base64;
-  } catch(e) { toast("Image error: " + e.message); }
+  } catch(e) { toast(tr("imageError") + ": " + e.message); }
   if (progress) progress.style.display = "none";
 };
 
@@ -1210,9 +1404,9 @@ window.saveMenuItem = async () => {
   const emoji = document.getElementById("fi-emoji").value.trim() || "☕";
   const usd   = parseFloat(document.getElementById("fi-usd").value) || 0;
   const khr   = parseInt(document.getElementById("fi-khr").value)   || Math.round(usd * KHR_RATE);
-  if (!name) { toast("Item name is required"); return; }
-  if (!cat)  { toast("Category is required"); return; }
-  if (usd <= 0) { toast("Price USD must be greater than 0"); return; }
+  if (!name) { toast(tr("itemNameRequiredMsg")); return; }
+  if (!cat)  { toast(tr("categoryRequiredMsg")); return; }
+  if (usd <= 0) { toast(tr("priceMustBeGreater")); return; }
 
   const btn = document.getElementById("save-item-btn");
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
@@ -1236,19 +1430,19 @@ window.saveMenuItem = async () => {
   try {
     if (editItemId) {
       await updateDoc(doc(db, "menu", editItemId), data);
-      toast("✅ Item updated!");
+      toast(tr("itemUpdated"));
     } else {
       await addDoc(menuCol(), { ...data, createdAt: serverTimestamp() });
-      toast("✅ Item added to menu!");
+      toast(tr("itemAddedToMenu"));
     }
     activeMenuTab = "items"; editItemId = null;
     renderMenuManager();
   } catch(e) {
     // Firestore doc limit is 1MB; warn if image is too large
     if (e.message?.includes("maximum")) {
-      toast("Photo too large — try a smaller image");
+      toast(tr("photoTooLarge"));
     } else {
-      toast("Save failed: " + e.message);
+      toast(tr("saveFailed") + ": " + e.message);
     }
     if (btn) { btn.disabled = false; btn.textContent = "Save"; }
   }
@@ -1258,9 +1452,9 @@ window.deleteMenuItem = async id => {
   if (!confirm("Delete this menu item?")) return;
   try {
     await deleteDoc(doc(db, "menu", id));
-    toast("Item deleted");
+    toast(tr("itemDeleted"));
     renderMenuManager();
-  } catch(e) { toast("Delete failed: " + e.message); }
+  } catch(e) { toast(tr("deleteFailed") + ": " + e.message); }
 };
 
 /* ─── RECEIPT ───
@@ -1273,9 +1467,9 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   const o = directOrder || orders.find(o => o.firestoreId === id);
   if (!o) {
     if (retries > 0) {
-      toast("Loading receipt…");
+      toast(tr("loadingReceipt"));
       setTimeout(() => showReceipt(id, retries - 1), 800);
-    } else { toast("Receipt not found. Try again."); }
+    } else { toast(tr("receiptNotFound")); }
     return;
   }
   activeReceiptId = id;
@@ -1285,7 +1479,7 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   document.getElementById("r-name").textContent = settings.name;
   document.getElementById("r-addr").textContent = settings.addr;
   document.getElementById("r-meta").textContent =
-    `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} · Table ${o.table}`;
+    `${t.toLocaleDateString()} ${t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} · ${tr("table")} ${o.table}`;
   document.getElementById("r-items").innerHTML =
     o.items.map(i => {
       const khr = i.priceKHR || Math.round((i.priceUSD||0)*KHR_RATE);
@@ -1297,23 +1491,23 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   const sub = o.subtotalUSD||o.subtotal||0;
   const tax = o.taxUSD||o.tax||0;
   const total = o.totalUSD||o.total||0;
-  const methodLabel = { cash:"💵 Cash", card:"💳 Card", qr:"📲 QR Pay" }[o.paymentMethod] || "";
+  const methodLabel = { cash:"💵 "+tr("cash"), card:"💳 "+tr("card"), qr:"📲 "+tr("qrPay") }[o.paymentMethod] || "";
   const cashRows = (o.paymentMethod === "cash" && o.cashReceived !== undefined)
-    ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Cash Received (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>
-       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Cash Received (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()} រៀល</span></div>
-       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Change</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`
+    ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("cashReceived")} (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>
+       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("cashReceived")} (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()} រៀល</span></div>
+       <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("changeDue")}</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`
     : "";
   document.getElementById("r-totals").innerHTML = `
     <hr class="receipt-divider">
-    <div class="receipt-order-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
-    ${tax>0?`<div class="receipt-order-row"><span>Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`:""}
-    <div class="receipt-order-row total-row"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
+    <div class="receipt-order-row"><span>${tr("subtotal")}</span><span>$${sub.toFixed(2)}</span></div>
+    ${tax>0?`<div class="receipt-order-row"><span>${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`:""}
+    <div class="receipt-order-row total-row"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>
     <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>
-    ${methodLabel?`<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>Payment</span><span>${methodLabel}</span></div>`:""}
+    ${methodLabel?`<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`:""}
     ${cashRows}
     ${o.paid
-      ? `<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">PAID</span></div>`
-      : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:700">⚠️ PAYMENT PENDING</div>`}`;
+      ? `<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">${tr("paid").toUpperCase()}</span></div>`
+      : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--amber);font-weight:700">⚠️ ${tr("paymentPending")}</div>`}`;
   document.getElementById("receipt-modal").classList.add("open");
 };
 
@@ -1323,7 +1517,7 @@ window.closeReceipt = () => document.getElementById("receipt-modal").classList.r
 window.printReceipt = () => {
   const o = activeReceiptOrder || orders.find(o => o.firestoreId === activeReceiptId);
   if (o) doPrint(o);
-  else toast("Receipt data not available. Please reopen the receipt.");
+  else toast(tr("receiptDataNotAvailable"));
 };
 
 // Core print function — sends to Bluetooth thermal printer if connected,
@@ -1412,31 +1606,31 @@ function buildReceiptHTML(o, items, logo, ts, totalKHR) {
   }
   html += `<div class="c" style="font-size:11pt;font-weight:bold;letter-spacing:0.5px">${settings.name}</div>`;
   html += `<div class="c" style="font-size:7pt;color:#888;margin-bottom:1mm">${settings.addr}</div>`;
-  html += `<div class="c" style="font-size:6.5pt;color:#aaa;letter-spacing:1px;margin-bottom:1mm">ORDER RECEIPT</div>`;
+  html += `<div class="c" style="font-size:6.5pt;color:#aaa;letter-spacing:1px;margin-bottom:1mm">${tr("orderReceipt")}</div>`;
   html += `<hr class="dash">`;
-  html += `<div class="row"><span class="lbl">Table</span><span>${o.table}</span></div>`;
-  html += `<div class="row"><span class="lbl">Date</span><span>${ts}</span></div>`;
+  html += `<div class="row"><span class="lbl">${tr("table")}</span><span>${o.table}</span></div>`;
+  html += `<div class="row"><span class="lbl">${tr("date")}</span><span>${ts}</span></div>`;
   html += `<hr class="dash">`;
   html += items;
   html += `<hr class="dash">`;
-  html += `<div class="row"><span class="lbl">Subtotal</span><span>$${sub.toFixed(2)}</span></div>`;
-  if (tax > 0) html += `<div class="row"><span class="lbl">Tax (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`;
+  html += `<div class="row"><span class="lbl">${tr("subtotal")}</span><span>$${sub.toFixed(2)}</span></div>`;
+  if (tax > 0) html += `<div class="row"><span class="lbl">${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`;
   html += `<hr class="solid">`;
-  html += `<div class="row tot"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>`;
+  html += `<div class="row tot"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>`;
   html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`;
   if (o.paymentMethod) {
-    const methodLabel = { cash:"Cash", card:"Card", qr:"QR Pay" }[o.paymentMethod] || o.paymentMethod;
-    html += `<div class="row" style="font-size:8pt;color:#888"><span>Payment</span><span>${methodLabel}</span></div>`;
+    const methodLabel = { cash:tr("cash"), card:tr("card"), qr:tr("qrPay") }[o.paymentMethod] || o.paymentMethod;
+    html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`;
     if (o.paymentMethod === "cash" && o.cashReceived !== undefined) {
-      html += `<div class="row" style="font-size:8pt;color:#888"><span>Received (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>`;
-      html += `<div class="row" style="font-size:8pt;color:#888"><span>Received (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()}រ</span></div>`;
-      html += `<div class="row" style="font-size:8pt;color:#888"><span>Change</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("cashReceived")} (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("cashReceived")} (KHR)</span><span>${(o.cashReceivedKHR||0).toLocaleString()}រ</span></div>`;
+      html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("changeDue")}</span><span>$${o.cashChange.toFixed(2)} / ${(o.cashChangeKHR||0).toLocaleString()}រ</span></div>`;
     }
   }
-  if (o.note) { html += `<hr class="dash"><div class="row"><span class="lbl">Note</span><span>${o.note}</span></div>`; }
+  if (o.note) { html += `<hr class="dash"><div class="row"><span class="lbl">${tr("note")}</span><span>${o.note}</span></div>`; }
   html += `<hr class="dash">`;
-  html += `<div class="c" style="font-size:10pt;font-weight:bold;color:${o.paid?'#48bb78':'#e53e3e'};margin-bottom:1mm">${o.paid?"✓ PAID":"⚠ UNPAID"}</div>`;
-  html += `<div class="ft">☕ Thank you! Please come again 🙏</div>`;
+  html += `<div class="c" style="font-size:10pt;font-weight:bold;color:${o.paid?'#48bb78':'#e53e3e'};margin-bottom:1mm">${o.paid?tr("paidLabel"):tr("unpaidLabel")}</div>`;
+  html += `<div class="ft">${tr("thankYouPleaseComeAgain")}</div>`;
   html += `</div>`;
 
   // Share image preview overlay
@@ -1528,7 +1722,7 @@ async function sendTelegramPayment(order) {
    date range the Stats tab happens to have selected. */
 window.sendDailySummary = async () => {
   const cfg = await getTgCfg();
-  if (!cfg?.token || !cfg?.chat) { toast("Set up Telegram bot token & chat ID first"); return; }
+  if (!cfg?.token || !cfg?.chat) { toast(tr("setupTelegramFirst")); return; }
 
   const today = new Date().toDateString();
   const todayOrders = orders.filter(o => new Date(o.time).toDateString() === today);
@@ -1570,31 +1764,31 @@ window.sendDailySummary = async () => {
       { method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ chat_id: cfg.chat, text: msg, parse_mode: "Markdown" }) });
     const d = await r.json();
-    if (d.ok) toast("✅ Daily summary sent!");
-    else toast("Failed: " + (d.description || "Unknown error"));
-  } catch(e) { toast("Error: " + e.message); }
+    if (d.ok) toast(tr("dailySummarySent"));
+    else toast(tr("failed") + ": " + (d.description || tr("unknownError")));
+  } catch(e) { toast(tr("error") + ": " + e.message); }
 };
 
 window.saveTelegram = async () => {
   const token = document.getElementById("tg-token").value.trim();
   const chat  = document.getElementById("tg-chat").value.trim();
-  try { await setDoc(tgDoc(),{token,chat}); toast("✅ Telegram saved to Firestore"); }
-  catch(e) { toast("Save failed: "+e.message); }
+  try { await setDoc(tgDoc(),{token,chat}); toast(tr("telegramSaved")); }
+  catch(e) { toast(tr("saveFailed") + ": " + e.message); }
 };
 
 window.testTelegram = async () => {
   const token   = document.getElementById("tg-token").value.trim();
   const chat    = document.getElementById("tg-chat").value.trim();
   const alertEl = document.getElementById("tg-alert");
-  if (!token||!chat) { showAlert(alertEl,false,"Enter bot token and chat ID first"); return; }
+  if (!token||!chat) { showAlert(alertEl,false,tr("enterBotTokenChatId")); return; }
   try {
     await setDoc(tgDoc(),{token,chat});
     const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`,
       {method:"POST",headers:{"Content-Type":"application/json"},
        body:JSON.stringify({chat_id:chat,text:"✅ Blue Bean Coffee alerts connected!\nOrders & payments will appear here."})});
     const d = await r.json();
-    showAlert(alertEl,d.ok,d.ok?"Test sent! Check Telegram.":(d.description||"Failed"));
-  } catch(e) { showAlert(alertEl,false,"Error: "+e.message); }
+    showAlert(alertEl,d.ok,d.ok?tr("testSentCheckTelegram"):(d.description||tr("failed")));
+  } catch(e) { showAlert(alertEl,false,tr("error")+": "+e.message); }
 };
 
 function showAlert(el,ok,msg) {
@@ -1638,16 +1832,16 @@ window.connectBluetooth = async () => {
   const statusEl = document.getElementById("bt-status");
   const btnLabel = document.getElementById("bt-btn-label");
   if (!navigator.bluetooth) {
-    statusEl.innerHTML = '<span style="color:var(--red)">Use Chrome on Android or Chrome desktop</span>';
+    statusEl.innerHTML = '<span style="color:var(--red)">' + tr("useChromeAndroidDesktop") + '</span>';
     return;
   }
   try {
-    statusEl.textContent = "Searching for printer...";
+    statusEl.textContent = tr("searchingForPrinter");
     btDevice = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: PRINTER_SERVICES
     });
-    statusEl.textContent = "Connecting to " + (btDevice.name||"printer") + "...";
+    statusEl.textContent = tr("connectingTo") + " " + (btDevice.name||"printer") + "...";
     btServer = await btDevice.gatt.connect();
 
     // Find working service
@@ -1671,14 +1865,14 @@ window.connectBluetooth = async () => {
     if (!btCharacter) throw new Error("No writable channel found on printer.");
 
     btnLabel.textContent = (btDevice.name||"Printer") + " \u2713";
-    statusEl.innerHTML = '<div style="color:var(--green-dark);font-weight:600">\u2713 Connected: ' + (btDevice.name||"Printer") + '</div>'
-      + '<button class="sm-btn green" style="margin-top:8px;width:100%;justify-content:center" onclick="testPrint()">Print Test Page</button>';
-    toast("Printer connected!");
+    statusEl.innerHTML = '<div style="color:var(--green-dark);font-weight:600">\u2713 ' + tr("connected") + ': ' + (btDevice.name||"Printer") + '</div>'
+      + '<button class="sm-btn green" style="margin-top:8px;width:100%;justify-content:center" onclick="testPrint()">' + tr("printTestPage") + '</button>';
+    toast(tr("printerConnected"));
 
     btDevice.addEventListener("gattserverdisconnected", () => {
       btDevice = null; btServer = null; btCharacter = null;
-      btnLabel.textContent = "Connect Printer";
-      statusEl.innerHTML = '<span style="color:var(--amber)">Printer disconnected. Tap to reconnect.</span>';
+      btnLabel.textContent = tr("connectPrinter");
+      statusEl.innerHTML = '<span style="color:var(--amber)">' + tr("printerDisconnected") + '</span>';
     });
   } catch(e) {
     statusEl.innerHTML = '<span style="color:var(--red)">' + e.message + '</span>';
@@ -1734,31 +1928,31 @@ function buildESCReceipt(order) {
 
   dashes();
   if ((order.taxUSD||0) > 0) {
-    padLine("Subtotal", "$" + (order.subtotalUSD||0).toFixed(2));
-    padLine("Tax (" + settings.tax + "%)", "$" + (order.taxUSD||0).toFixed(2));
+    padLine(tr("subtotal"), "$" + (order.subtotalUSD||0).toFixed(2));
+    padLine(tr("tax") + " (" + settings.tax + "%)", "$" + (order.taxUSD||0).toFixed(2));
     dashes();
   }
   push(CMD.BOLD_ON);
-  padLine("TOTAL", "$" + (order.totalUSD||0).toFixed(2));
+  padLine(tr("total").toUpperCase(), "$" + (order.totalUSD||0).toFixed(2));
   push(CMD.BOLD_OFF);
   text("KHR: " + totalKHR.toLocaleString() + " \u179a"); nl();
 
   if (order.paymentMethod) {
-    const methodLabel = { cash:"Cash", card:"Card", qr:"QR Pay" }[order.paymentMethod] || order.paymentMethod;
-    padLine("Payment", methodLabel);
+    const methodLabel = { cash:tr("cash"), card:tr("card"), qr:tr("qrPay") }[order.paymentMethod] || order.paymentMethod;
+    padLine(tr("paymentMethod"), methodLabel);
     if (order.paymentMethod === "cash" && order.cashReceived !== undefined) {
-      padLine("Received (USD)", "$" + (order.cashReceivedUSD||0).toFixed(2));
-      padLine("Received (KHR)", (order.cashReceivedKHR||0).toLocaleString() + "\u179a");
-      padLine("Change", "$" + order.cashChange.toFixed(2) + " / " + (order.cashChangeKHR||0).toLocaleString() + "\u179a");
+      padLine(tr("cashReceived") + " (USD)", "$" + (order.cashReceivedUSD||0).toFixed(2));
+      padLine(tr("cashReceived") + " (KHR)", (order.cashReceivedKHR||0).toLocaleString() + "\u179a");
+      padLine(tr("changeDue"), "$" + order.cashChange.toFixed(2) + " / " + (order.cashChangeKHR||0).toLocaleString() + "\u179a");
     }
   }
 
-  if (order.note) { dashes(); text("Note: " + order.note); nl(); }
+  if (order.note) { dashes(); text(tr("note") + ": " + order.note); nl(); }
 
   dashes();
   push(CMD.ALIGN_CENTER);
-  if (order.paid) { push(CMD.BOLD_ON); text("*** PAID ***"); nl(); push(CMD.BOLD_OFF); }
-  text("Thank you! Please come again"); nl();
+  if (order.paid) { push(CMD.BOLD_ON); text("*** " + tr("paid").toUpperCase() + " ***"); nl(); push(CMD.BOLD_OFF); }
+  text(tr("thankYouVisiting") + " " + tr("pleaseComeAgain")); nl();
   nl(); nl(); nl();
   push(CMD.FEED_CUT);
 
@@ -1769,15 +1963,15 @@ async function sendToBluetooth(order) {
   if (!btCharacter) return;
   try {
     await writeToChar(buildESCReceipt(order));
-    toast("Printed!");
+    toast(tr("printed"));
   } catch(e) {
-    toast("Print failed: " + e.message);
+    toast(tr("printFailed") + ": " + e.message);
     console.warn("BT print:", e.message);
   }
 }
 
 window.testPrint = async () => {
-  if (!btCharacter) { toast("Connect printer first"); return; }
+  if (!btCharacter) { toast(tr("connectPrinterFirst")); return; }
   const sample = {
     table:"TEST", time:new Date().toISOString(),
     items:[{name:"Iced Latte",qty:2,priceUSD:3.50,priceKHR:14350}],
@@ -1793,7 +1987,7 @@ function initQR() {
   if (!document.getElementById("table-grid")) return;
   document.getElementById("table-grid").innerHTML =
     Array.from({length:12},(_,i)=>i+1)
-      .map(n=>`<button class="table-grid-btn${n===activeQRTable?" active":""}" onclick="selectQRTable(${n})">Table ${n}</button>`)
+      .map(n=>`<button class="table-grid-btn${n===activeQRTable?" active":""}" onclick="selectQRTable(${n})">${tr("table")} ${n}</button>`)
       .join("");
   generateQR(activeQRTable);
 }
@@ -1835,7 +2029,7 @@ window.downloadQR = () => {
       link.href = canvas.toDataURL("image/png");
     } else if (img) {
       link.href = img.src;
-    } else { toast("QR not ready yet"); return; }
+    } else { toast(tr("qrNotReady")); return; }
     link.click();
     toast(`✅ Table ${activeQRTable} QR downloaded`);
   }, 100);
@@ -1854,8 +2048,8 @@ window.saveSettings = async () => {
   settings.addr  = document.getElementById("settings-addr").value.trim()  || settings.addr;
   settings.table = parseInt(document.getElementById("settings-table").value)  || settings.table;
   settings.tax   = parseFloat(document.getElementById("settings-tax").value)  || 0;
-  try { await setDoc(settingsDoc(),settings); updateHeader(); toast("✅ Settings saved"); }
-  catch(e) { toast("Save failed: "+e.message); }
+  try { await setDoc(settingsDoc(),settings); updateHeader(); toast(tr("settingsSaved")); }
+  catch(e) { toast(tr("saveFailed") + ": " + e.message); }
 };
 function updateHeader() {
   document.getElementById("header-name").textContent  = settings.name;
@@ -1928,6 +2122,7 @@ input,textarea{font-family:inherit}
 .restaurant-name{font-size:16px;font-weight:700;letter-spacing:-.3px}
 .restaurant-sub{font-size:12px;color:var(--text3);margin-top:1px}
 .table-pill{margin-left:auto;background:var(--green-light);color:var(--green-text);font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.lang-btn.active{background:var(--green);border-color:var(--green);color:#fff}
 
 /* Nav */
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom)}
@@ -2173,7 +2368,11 @@ input,textarea{font-family:inherit}
     <div class="restaurant-name" id="header-name">Blue Bean Coffee</div>
     <div class="restaurant-sub" id="header-sub">Phnom Penh, Cambodia</div>
   </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+    <div style="display:flex;gap:4px">
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')" style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:50px;border:1.5px solid var(--border);background:none;cursor:pointer;color:var(--text2)">EN</button>
+      <button class="lang-btn" data-lang="km" onclick="setLang('km')" style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:50px;border:1.5px solid var(--border);background:none;cursor:pointer;color:var(--text2)">ខ្មែរ</button>
+    </div>
     <div class="table-pill" id="header-table">Table 1</div>
     <div id="admin-auth-label" style="font-size:10px;color:var(--text3);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right"></div>
   </div>
@@ -2198,11 +2397,11 @@ input,textarea{font-family:inherit}
 <!-- ADMIN PAGE -->
 <div class="page" id="page-admin">
   <div class="admin-tabs">
-    <button class="admin-tab active" onclick="adminTab('live')">📋 Orders</button>
-    <button class="admin-tab" onclick="adminTab('history')">History</button>
-    <button class="admin-tab" onclick="adminTab('stats')">Stats</button>
-    <button class="admin-tab" onclick="adminTab('menu')">🍽️ Menu</button>
-    <button class="admin-tab" id="admin-auth-btn" onclick="showLoginModal()" style="margin-left:auto;border-color:var(--green);color:var(--green)">🔑 Login</button>
+    <button class="admin-tab active" onclick="adminTab('live')">📋 <span data-i18n="orders">Orders</span></button>
+    <button class="admin-tab" onclick="adminTab('history')"><span data-i18n="history">History</span></button>
+    <button class="admin-tab" onclick="adminTab('stats')"><span data-i18n="stats">Stats</span></button>
+    <button class="admin-tab" onclick="adminTab('menu')">🍽️ <span data-i18n="menu">Menu</span></button>
+    <button class="admin-tab" id="admin-auth-btn" onclick="showLoginModal()" style="margin-left:auto;border-color:var(--green);color:var(--green)">🔑 <span data-i18n="signIn">Login</span></button>
   </div>
   <div id="admin-body"></div>
 </div>
@@ -2212,14 +2411,14 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--green-light);color:var(--green-text)">📱</div>
-      <div><div class="setup-title">QR Menu Generator</div><div class="setup-sub">One QR per table</div></div>
+      <div><div class="setup-title" data-i18n="qrMenuGenerator">QR Menu Generator</div><div class="setup-sub" data-i18n="onePerTable">One QR per table</div></div>
     </div>
-    <div class="section-label">Select table</div>
+    <div class="section-label" data-i18n="selectTable">Select table</div>
     <div class="table-grid" id="table-grid"></div>
     <div class="qr-preview">
       <div class="qr-card">
         <div id="qr-container" style="width:200px;height:200px;margin:0 auto"></div>
-        <div class="qr-label">Table <span id="qr-table-num">1</span></div>
+        <div class="qr-label"><span data-i18n="table">Table</span> <span id="qr-table-num">1</span></div>
         <div class="qr-sublabel" id="qr-url-label">sophornung575-jpg.github.io/Blue-Bean-Coffee/?table=1</div>
       </div>
     </div>
@@ -2232,23 +2431,23 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:#e8f4fd;color:#229ED9">✈️</div>
-      <div><div class="setup-title">Telegram Alert Bot</div><div class="setup-sub">Saved to Firestore</div></div>
+      <div><div class="setup-title" data-i18n="telegramAlertBot">Telegram Alert Bot</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
     </div>
     <div class="form-group">
-      <label class="form-label">Bot Token</label>
+      <label class="form-label" data-i18n="botToken">Bot Token</label>
       <input class="form-input" type="text" id="tg-token" placeholder="1234567890:AAFHbc...">
       <div class="form-hint">Create bot: @BotFather → /newbot</div>
     </div>
     <div class="form-group">
-      <label class="form-label">Chat ID</label>
+      <label class="form-label" data-i18n="chatId">Chat ID</label>
       <input class="form-input" type="text" id="tg-chat" placeholder="-1001234567890">
     </div>
     <div style="display:flex;gap:8px">
       <button class="sm-btn green" onclick="saveTelegram()">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> Save
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> <span data-i18n="save">Save</span>
       </button>
       <button class="sm-btn" onclick="testTelegram()">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Test
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> <span data-i18n="test">Test</span>
       </button>
     </div>
     <div id="tg-alert" style="display:none"></div>
@@ -2257,11 +2456,11 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--blue-light);color:var(--blue)">🖨️</div>
-      <div><div class="setup-title">Bluetooth Printer</div><div class="setup-sub">Chrome only</div></div>
+      <div><div class="setup-title" data-i18n="bluetoothPrinter">Bluetooth Printer</div><div class="setup-sub" data-i18n="chromeOnly">Chrome only</div></div>
     </div>
     <button class="sm-btn" onclick="connectBluetooth()">
       <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 2L12 22M12 7L17 12L12 17"/></svg>
-      <span id="bt-btn-label">Connect Printer</span>
+      <span id="bt-btn-label" data-i18n="connectPrinter">Connect Printer</span>
     </button>
     <div id="bt-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
   </div>
@@ -2269,27 +2468,27 @@ input,textarea{font-family:inherit}
   <div class="setup-section">
     <div class="setup-section-header">
       <div class="setup-icon" style="background:var(--surface2)">⚙️</div>
-      <div><div class="setup-title">Restaurant Settings</div><div class="setup-sub">Saved to Firestore</div></div>
+      <div><div class="setup-title" data-i18n="restaurantSettings">Restaurant Settings</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
     </div>
     <div class="form-group">
-      <label class="form-label">Name</label>
+      <label class="form-label" data-i18n="name">Name</label>
       <input class="form-input" type="text" id="settings-name">
     </div>
     <div class="form-group">
-      <label class="form-label">Address / Tagline</label>
+      <label class="form-label" data-i18n="addressTagline">Address / Tagline</label>
       <input class="form-input" type="text" id="settings-addr">
     </div>
     <div class="form-group">
-      <label class="form-label">Table Number</label>
+      <label class="form-label" data-i18n="tableNumber">Table Number</label>
       <input class="form-input" type="number" id="settings-table" min="1" max="99">
     </div>
     <div class="form-group">
-      <label class="form-label">Tax Rate (%)</label>
+      <label class="form-label" data-i18n="taxRate">Tax Rate (%)</label>
       <input class="form-input" type="number" id="settings-tax" min="0" max="50">
     </div>
     <button class="sm-btn green" onclick="saveSettings()">
       <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>
-      Save Settings
+      <span data-i18n="save">Save Settings</span>
     </button>
   </div>
 </div>
@@ -2305,17 +2504,17 @@ input,textarea{font-family:inherit}
 <!-- Bottom Nav -->
 <div class="bottom-nav">
   <button class="nav-btn active" id="nav-menu" onclick="switchPage('menu')">
-    <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>Menu
+    <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg><span data-i18n="menu">Menu</span>
   </button>
   <button class="nav-btn" id="nav-cart" onclick="switchPage('cart')">
-    <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Cart
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span data-i18n="cart">Cart</span>
     <span class="nav-badge" id="nav-cart-badge" style="display:none"></span>
   </button>
   <button class="nav-btn" id="nav-admin" onclick="switchPage('admin')">
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Admin
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span data-i18n="admin">Admin</span>
   </button>
   <button class="nav-btn" id="nav-setup" onclick="switchPage('setup')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-i18n="setup">Setup</span>
   </button>
 </div>
 
@@ -2325,26 +2524,26 @@ input,textarea{font-family:inherit}
     <div class="receipt-drag"></div>
     <div style="text-align:center;margin-bottom:16px">
       <div style="font-size:28px;margin-bottom:4px">💰</div>
-      <div style="font-size:17px;font-weight:700;color:var(--text)">Collect Payment</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text)" data-i18n="collectPayment">Collect Payment</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px" id="pm-order-meta">Table —</div>
     </div>
 
     <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;text-align:center">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Amount Due</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" data-i18n="amountDue">Amount Due</div>
       <div style="font-size:26px;font-weight:800;color:var(--text)" id="pm-amount-due">$0.00</div>
       <div style="font-size:12px;color:var(--text3)" id="pm-amount-due-khr">0 រៀល</div>
     </div>
 
-    <div class="form-label" style="margin-bottom:8px">Payment Method</div>
+    <div class="form-label" style="margin-bottom:8px" data-i18n="paymentMethod">Payment Method</div>
     <div class="pay-method-row" id="pm-method-row">
-      <button class="pay-method-btn active" data-method="cash" onclick="selectPayMethod('cash',this)">💵<span>Cash</span></button>
-      <button class="pay-method-btn" data-method="card" onclick="selectPayMethod('card',this)">💳<span>Card</span></button>
-      <button class="pay-method-btn" data-method="qr" onclick="selectPayMethod('qr',this)">📲<span>QR Pay</span></button>
+      <button class="pay-method-btn active" data-method="cash" onclick="selectPayMethod('cash',this)">💵<span data-i18n="cash">Cash</span></button>
+      <button class="pay-method-btn" data-method="card" onclick="selectPayMethod('card',this)">💳<span data-i18n="card">Card</span></button>
+      <button class="pay-method-btn" data-method="qr" onclick="selectPayMethod('qr',this)">📲<span data-i18n="qrPay">QR Pay</span></button>
     </div>
 
     <!-- Cash tendered + change (only shown when method = cash) -->
     <div id="pm-cash-block">
-      <div class="form-label" style="margin-top:14px;margin-bottom:8px">Cash Received</div>
+      <div class="form-label" style="margin-top:14px;margin-bottom:8px" data-i18n="cashReceived">Cash Received</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="form-group" style="margin:0">
           <label class="form-label" style="font-size:10px">USD ($)</label>
@@ -2357,25 +2556,25 @@ input,textarea{font-family:inherit}
                  style="font-size:16px;font-weight:700;text-align:right" oninput="calcChange()" autocomplete="off">
         </div>
       </div>
-      <div style="font-size:10px;color:var(--text3);margin:6px 0 12px">Customer can pay with a mix of USD and KHR — enter both if needed.</div>
+      <div style="font-size:10px;color:var(--text3);margin:6px 0 12px" data-i18n="mixCurrencyHint">Customer can pay with a mix of USD and KHR — enter both if needed.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="pm-quick-cash"></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="pm-quick-cash-khr"></div>
       <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:12px;font-weight:600;color:var(--text3)">Change Due</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text3)" data-i18n="changeDue">Change Due</span>
           <span id="pm-change" style="font-size:20px;font-weight:800;color:var(--green-dark)">$0.00</span>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:2px">
           <span id="pm-change-khr" style="font-size:12px;color:var(--text3)">0 រៀល</span>
         </div>
-        <div id="pm-change-warn" style="display:none;font-size:11px;color:var(--red);margin-top:4px">⚠️ Amount received is less than total due</div>
+        <div id="pm-change-warn" style="display:none;font-size:11px;color:var(--red);margin-top:4px">⚠️ <span data-i18n="amountLessThanDue">Amount received is less than total due</span></div>
       </div>
     </div>
 
-    <button class="btn btn-green" id="pm-confirm-btn" style="margin-top:10px" onclick="confirmPayment()" disabled>
+    <button class="btn btn-green" id="pm-confirm-btn" style="margin-top:10px" onclick="confirmPayment()" disabled data-i18n="confirmPaymentReceived">
       ✓ Confirm Payment Received
     </button>
-    <button class="btn btn-outline" onclick="closePaymentModal()">Cancel</button>
+    <button class="btn btn-outline" onclick="closePaymentModal()" data-i18n="cancel">Cancel</button>
   </div>
 </div>
 
@@ -2391,10 +2590,10 @@ input,textarea{font-family:inherit}
     <hr class="receipt-divider">
     <div id="r-items"></div>
     <div id="r-totals"></div>
-    <div class="receipt-footer">Thank you for visiting!<br>Please come again ☕🙏</div>
+    <div class="receipt-footer"><span data-i18n="thankYouVisiting">Thank you for visiting!</span><br><span data-i18n="pleaseComeAgain">Please come again</span> ☕🙏</div>
     <div class="receipt-actions">
-      <button class="btn btn-outline" onclick="closeReceipt()">Close</button>
-      <button class="btn btn-green" onclick="printReceipt()">🖨️ Print</button>
+      <button class="btn btn-outline" onclick="closeReceipt()" data-i18n="close">Close</button>
+      <button class="btn btn-green" onclick="printReceipt()">🖨️ <span data-i18n="printReceipt">Print</span></button>
     </div>
   </div>
 </div>
@@ -2405,20 +2604,20 @@ input,textarea{font-family:inherit}
     <div class="receipt-drag"></div>
     <div style="text-align:center;margin-bottom:20px">
       <div style="font-size:32px;margin-bottom:8px">🔑</div>
-      <div style="font-size:18px;font-weight:700;color:var(--text)">Admin Sign In</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:4px">Manage orders, menu & settings</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text)" data-i18n="adminSignIn">Admin Sign In</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px" data-i18n="manageOrdersMenuSettings">Manage orders, menu & settings</div>
     </div>
     <div class="form-group">
-      <label class="form-label">Email</label>
+      <label class="form-label" data-i18n="email">Email</label>
       <input class="form-input" type="email" id="login-email" placeholder="admin@bluebancoffee.com" autocomplete="email">
     </div>
     <div class="form-group">
-      <label class="form-label">Password</label>
+      <label class="form-label" data-i18n="password">Password</label>
       <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
     </div>
     <div id="login-error" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px;font-weight:500"></div>
-    <button class="btn btn-green" id="login-btn" onclick="doLogin()">Sign In</button>
-    <button class="btn btn-outline" onclick="closeLoginModal()" style="margin-top:8px">Cancel</button>
+    <button class="btn btn-green" id="login-btn" onclick="doLogin()" data-i18n="signIn">Sign In</button>
+    <button class="btn btn-outline" onclick="closeLoginModal()" style="margin-top:8px" data-i18n="cancel">Cancel</button>
     <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);font-size:11px;color:var(--text3);line-height:1.7">
       <strong style="color:var(--text2)">First time?</strong> Go to Firebase Console → Authentication → Users → Add user, create your admin email & password there.
     </div>
