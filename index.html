@@ -98,6 +98,9 @@ const I18N = {
     telegramSaved: "✅ Telegram saved to Firestore", printerConnected: "Printer connected!",
     printed: "Printed!", printFailed: "Print failed", connectPrinterFirst: "Connect printer first",
     qrNotReady: "QR not ready yet", settingsSaved: "✅ Settings saved",
+    discount: "Discount", discountType: "Discount Type", percentage: "Percentage (%)", fixedAmount: "Fixed Amount ($)",
+    discountValue: "Discount Value", discountAmount: "Discount", afterDiscount: "After Discount",
+    removeDiscount: "Remove", noDiscount: "No discount applied", discountApplied: "Discount applied",
     useChromeAndroidDesktop: "Use Chrome on Android or Chrome desktop",
     searchingForPrinter: "Searching for printer...", connectingTo: "Connecting to",
     connected: "Connected", printTestPage: "Print Test Page",
@@ -178,6 +181,9 @@ const I18N = {
     telegramSaved: "✅ បានរក្សាទុក Telegram ក្នុង Firestore", printerConnected: "បានភ្ជាប់ម៉ាស៊ីនព្រីន!",
     printed: "បានបោះពុម្ព!", printFailed: "បោះពុម្ពមិនបាន", connectPrinterFirst: "សូមភ្ជាប់ម៉ាស៊ីនព្រីនជាមុនសិន",
     qrNotReady: "កូដ QR មិនទាន់រួចរាល់ទេ", settingsSaved: "✅ បានរក្សាទុកការកំណត់",
+    discount: "បញ្ចុះតម្លៃ", discountType: "ប្រភេទបញ្ចុះតម្លៃ", percentage: "ភាគរយ (%)", fixedAmount: "ចំនួនថេរ ($)",
+    discountValue: "តម្លៃបញ្ចុះ", discountAmount: "បញ្ចុះតម្លៃ", afterDiscount: "បន្ទាប់ពីបញ្ចុះ",
+    removeDiscount: "លុបចោល", noDiscount: "មិនមានការបញ្ចុះតម្លៃ", discountApplied: "បានអនុវត្តការបញ្ចុះតម្លៃ",
     useChromeAndroidDesktop: "សូមប្រើ Chrome លើ Android ឬ Chrome desktop",
     searchingForPrinter: "កំពុងស្វែងរកម៉ាស៊ីនព្រីន...", connectingTo: "កំពុងភ្ជាប់ទៅ",
     connected: "បានភ្ជាប់", printTestPage: "បោះពុម្ពទំព័រសាកល្បង",
@@ -951,12 +957,17 @@ window.collectPayment = id => {
 };
 
 /* ─── PAYMENT MODAL ─── */
-let pmOrderId = null;
-let pmMethod  = "cash";
+let pmOrderId      = null;
+let pmMethod       = "cash";
+let pmDiscountType = "pct";   // 'pct' = percentage, 'fixed' = fixed USD amount
+let pmDiscountVal  = 0;       // raw input value (% or $)
 
 function openPaymentModal(o) {
   pmOrderId = o.firestoreId;
   pmMethod  = "cash";
+  // Reset discount state
+  pmDiscountType = "pct";
+  pmDiscountVal  = 0;
   const totalUSD = o.totalUSD || o.total || 0;
   const totalKHR = o.totalKHR || Math.round(totalUSD * KHR_RATE);
 
@@ -971,28 +982,20 @@ function openPaymentModal(o) {
   document.getElementById("pm-change-warn").style.display = "none";
   document.getElementById("pm-confirm-btn").disabled = true;
   document.getElementById("pm-confirm-btn").textContent = tr("confirmPaymentReceived");
+  // Reset discount UI
+  document.getElementById("pm-discount-input").value = "";
+  document.getElementById("pm-discount-result").style.display = "none";
+  document.getElementById("pm-discount-remove").style.display = "none";
+  document.querySelectorAll(".discount-type-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("dt-pct").classList.add("active");
+  document.getElementById("pm-discount-prefix").textContent = "%";
 
   // Reset method buttons to Cash
   document.querySelectorAll(".pay-method-btn").forEach(b => b.classList.toggle("active", b.dataset.method === "cash"));
   document.getElementById("pm-cash-block").style.display = "block";
 
-  // Quick-cash suggestion buttons — USD
-  const suggestionsUSD = new Set();
-  suggestionsUSD.add(Math.ceil(totalUSD));
-  [1,2,5,10,20,50,100].forEach(note => { if (note >= totalUSD) suggestionsUSD.add(note); });
-  const sortedUSD = [...suggestionsUSD].sort((a,b)=>a-b).slice(0,5);
-  document.getElementById("pm-quick-cash").innerHTML = sortedUSD.map(v =>
-    `<button class="quick-cash-btn" onclick="setQuickCashUSD(${v})">$${v.toFixed(2)}</button>`
-  ).join("");
-
-  // Quick-cash suggestion buttons — KHR (common note denominations: 1k, 5k, 10k, 20k, 50k, 100k)
-  const suggestionsKHR = new Set();
-  suggestionsKHR.add(Math.ceil(totalKHR / 100) * 100);
-  [1000,5000,10000,20000,50000,100000].forEach(note => { if (note >= totalKHR) suggestionsKHR.add(note); });
-  const sortedKHR = [...suggestionsKHR].sort((a,b)=>a-b).slice(0,5);
-  document.getElementById("pm-quick-cash-khr").innerHTML = sortedKHR.map(v =>
-    `<button class="quick-cash-btn" onclick="setQuickCashKHR(${v})">${v.toLocaleString()}រ</button>`
-  ).join("");
+  // Quick-cash suggestion buttons
+  updateQuickCash(totalUSD);
 
   document.getElementById("payment-modal").classList.add("open");
   setTimeout(() => document.getElementById("pm-cash-received-usd").focus(), 150);
@@ -1026,7 +1029,8 @@ window.setQuickCashKHR = v => {
 window.calcChange = () => {
   const o = orders.find(o => o.firestoreId === pmOrderId);
   if (!o) return;
-  const totalUSD = o.totalUSD || o.total || 0;
+  // Use effective total (after any discount applied)
+  const totalUSD = pmEffectiveTotal();
 
   const receivedUSD = parseFloat(document.getElementById("pm-cash-received-usd").value) || 0;
   const receivedKHR = parseFloat(document.getElementById("pm-cash-received-khr").value) || 0;
@@ -1066,7 +1070,11 @@ window.calcChange = () => {
 window.confirmPayment = async () => {
   const o = orders.find(o => o.firestoreId === pmOrderId);
   if (!o) return;
-  const totalUSD = o.totalUSD || o.total || 0;
+  const baseUSD     = o.totalUSD || o.total || 0;
+  const effectiveUSD = pmEffectiveTotal();
+  const effectiveKHR = Math.round(effectiveUSD * KHR_RATE);
+  const discountAmt  = baseUSD - effectiveUSD;
+
   const btn = document.getElementById("pm-confirm-btn");
   btn.disabled = true; btn.textContent = tr("processing");
 
@@ -1074,15 +1082,25 @@ window.confirmPayment = async () => {
     paid: true, status: "paid", paidAt: new Date().toISOString(),
     paymentMethod: pmMethod
   };
+  // Save discount details if any was applied
+  if (discountAmt > 0.001) {
+    payload.discountType  = pmDiscountType;
+    payload.discountVal   = pmDiscountVal;
+    payload.discountAmt   = discountAmt;
+    payload.discountAmtKHR = Math.round(discountAmt * KHR_RATE);
+    payload.finalTotalUSD  = effectiveUSD;
+    payload.finalTotalKHR  = effectiveKHR;
+  }
   if (pmMethod === "cash") {
     const receivedUSD = parseFloat(document.getElementById("pm-cash-received-usd").value) || 0;
     const receivedKHR = parseFloat(document.getElementById("pm-cash-received-khr").value) || 0;
     const totalReceivedUSD = receivedUSD + (receivedKHR / KHR_RATE);
     payload.cashReceivedUSD = receivedUSD;
     payload.cashReceivedKHR = receivedKHR;
-    payload.cashReceived    = totalReceivedUSD; // USD-equivalent total, kept for backward compatibility
-    payload.cashChange      = totalReceivedUSD - totalUSD;
-    payload.cashChangeKHR   = Math.round((totalReceivedUSD - totalUSD) * KHR_RATE);
+    payload.cashReceived    = totalReceivedUSD;
+    // Change is calculated against discounted total
+    payload.cashChange      = totalReceivedUSD - effectiveUSD;
+    payload.cashChangeKHR   = Math.round((totalReceivedUSD - effectiveUSD) * KHR_RATE);
   }
 
   try {
@@ -1091,21 +1109,13 @@ window.confirmPayment = async () => {
     if (idx !== -1) orders[idx] = { ...orders[idx], ...payload };
     const updated = orders.find(x => x.firestoreId === pmOrderId);
     if (updated) sendTelegramPayment(updated);
-    // Capture the ID and the full updated order before closing the modal —
-    // closePaymentModal() clears pmOrderId to null, and the live Firestore
-    // listener can rebuild `orders` at any moment, so we hold onto our own
-    // copy rather than looking it up again afterward.
     const paidOrderId = pmOrderId;
     const paidOrder = updated ? { ...updated } : { ...o, ...payload };
     closePaymentModal();
     toast(tr("paymentCollected"));
-    // Re-render the order list right away so the card flips to "Paid"
-    // immediately, instead of waiting for the Firestore snapshot round-trip.
     if (document.getElementById("page-admin").classList.contains("active") && activeAdminTab !== "menu" && activeAdminTab !== "stats") {
       renderAdmin();
     }
-    // Open receipt preview for printing — pass the order object directly so
-    // this never depends on finding it in `orders` again.
     showReceipt(paidOrderId, 3, paidOrder);
   } catch(e) {
     btn.disabled = false; btn.textContent = tr("confirmPaymentReceived");
@@ -1122,6 +1132,98 @@ window.closePaymentModal = () => {
   document.getElementById("payment-modal").classList.remove("open");
   pmOrderId = null;
 };
+
+/* ─── DISCOUNT LOGIC ─── */
+// Returns the effective USD total after applying the current discount
+function pmEffectiveTotal() {
+  const o = orders.find(o => o.firestoreId === pmOrderId);
+  if (!o) return 0;
+  const base = o.totalUSD || o.total || 0;
+  if (!pmDiscountVal || pmDiscountVal <= 0) return base;
+  if (pmDiscountType === "pct") {
+    const pct = Math.min(pmDiscountVal, 100);
+    return Math.max(0, base - (base * pct / 100));
+  }
+  return Math.max(0, base - pmDiscountVal);
+}
+
+window.setDiscountType = (type, el) => {
+  pmDiscountType = type;
+  document.querySelectorAll(".discount-type-btn").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+  const prefix = document.getElementById("pm-discount-prefix");
+  if (prefix) prefix.textContent = type === "pct" ? "%" : "$";
+  applyDiscount();
+};
+
+window.applyDiscount = () => {
+  const input = parseFloat(document.getElementById("pm-discount-input").value) || 0;
+  pmDiscountVal = Math.max(0, input);
+
+  const o = orders.find(o => o.firestoreId === pmOrderId);
+  if (!o) return;
+  const base    = o.totalUSD || o.total || 0;
+  const baseKHR = o.totalKHR || Math.round(base * KHR_RATE);
+  const after   = pmEffectiveTotal();
+  const afterKHR = Math.round(after * KHR_RATE);
+  const discountAmt = base - after;
+
+  const resultEl = document.getElementById("pm-discount-result");
+  const removeBtn = document.getElementById("pm-discount-remove");
+
+  if (pmDiscountVal > 0 && discountAmt > 0.001) {
+    document.getElementById("pm-discount-amt").textContent = "-$" + discountAmt.toFixed(2);
+    document.getElementById("pm-after-discount").textContent = "$" + after.toFixed(2);
+    document.getElementById("pm-after-discount-khr").textContent = afterKHR.toLocaleString() + " រៀល";
+    resultEl.style.display = "block";
+    removeBtn.style.display = "block";
+  } else {
+    resultEl.style.display = "none";
+    removeBtn.style.display = "none";
+  }
+
+  // Update the amount-due display to reflect discount
+  document.getElementById("pm-amount-due").textContent = "$" + after.toFixed(2);
+  document.getElementById("pm-amount-due-khr").textContent = afterKHR.toLocaleString() + " រៀល";
+
+  // Refresh quick-cash buttons and change calculation
+  updateQuickCash(after);
+  calcChange();
+};
+
+window.removeDiscount = () => {
+  pmDiscountVal = 0;
+  document.getElementById("pm-discount-input").value = "";
+  document.getElementById("pm-discount-result").style.display = "none";
+  document.getElementById("pm-discount-remove").style.display = "none";
+  const o = orders.find(o => o.firestoreId === pmOrderId);
+  if (!o) return;
+  const base = o.totalUSD || o.total || 0;
+  const baseKHR = o.totalKHR || Math.round(base * KHR_RATE);
+  document.getElementById("pm-amount-due").textContent = "$" + base.toFixed(2);
+  document.getElementById("pm-amount-due-khr").textContent = baseKHR.toLocaleString() + " រៀល";
+  updateQuickCash(base);
+  calcChange();
+};
+
+function updateQuickCash(totalUSD) {
+  const suggestionsUSD = new Set();
+  suggestionsUSD.add(Math.ceil(totalUSD));
+  [1,2,5,10,20,50,100].forEach(note => { if (note >= totalUSD) suggestionsUSD.add(note); });
+  const sortedUSD = [...suggestionsUSD].sort((a,b)=>a-b).slice(0,5);
+  document.getElementById("pm-quick-cash").innerHTML = sortedUSD.map(v =>
+    `<button class="quick-cash-btn" onclick="setQuickCashUSD(${v})">$${v.toFixed(2)}</button>`
+  ).join("");
+
+  const totalKHR = Math.round(totalUSD * KHR_RATE);
+  const suggestionsKHR = new Set();
+  suggestionsKHR.add(Math.ceil(totalKHR / 100) * 100);
+  [1000,5000,10000,20000,50000,100000].forEach(note => { if (note >= totalKHR) suggestionsKHR.add(note); });
+  const sortedKHR = [...suggestionsKHR].sort((a,b)=>a-b).slice(0,5);
+  document.getElementById("pm-quick-cash-khr").innerHTML = sortedKHR.map(v =>
+    `<button class="quick-cash-btn" onclick="setQuickCashKHR(${v})">${v.toLocaleString()}រ</button>`
+  ).join("");
+}
 
 // Print receipt directly without opening modal first
 window.printReceiptDirect = id => {
@@ -1491,6 +1593,14 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   const sub = o.subtotalUSD||o.subtotal||0;
   const tax = o.taxUSD||o.tax||0;
   const total = o.totalUSD||o.total||0;
+  const finalTotal = o.finalTotalUSD !== undefined ? o.finalTotalUSD : total;
+  const finalKHR   = o.finalTotalKHR  !== undefined ? o.finalTotalKHR  : totalKHR;
+  const discountRow = o.discountAmt > 0.001
+    ? `<div class="receipt-order-row" style="color:var(--red)">
+         <span>🏷️ ${tr("discount")} ${o.discountType==="pct" ? `(${o.discountVal}%)` : ""}</span>
+         <span>-$${o.discountAmt.toFixed(2)}</span>
+       </div>`
+    : "";
   const methodLabel = { cash:"💵 "+tr("cash"), card:"💳 "+tr("card"), qr:"📲 "+tr("qrPay") }[o.paymentMethod] || "";
   const cashRows = (o.paymentMethod === "cash" && o.cashReceived !== undefined)
     ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("cashReceived")} (USD)</span><span>$${(o.cashReceivedUSD||0).toFixed(2)}</span></div>
@@ -1502,7 +1612,9 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
     <div class="receipt-order-row"><span>${tr("subtotal")}</span><span>$${sub.toFixed(2)}</span></div>
     ${tax>0?`<div class="receipt-order-row"><span>${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`:""}
     <div class="receipt-order-row total-row"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>
-    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>
+    ${discountRow}
+    ${discountRow ? `<div class="receipt-order-row" style="font-size:14px;font-weight:800;color:var(--green-dark)"><span>${tr("afterDiscount")}</span><span>$${finalTotal.toFixed(2)}</span></div>
+    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${finalKHR.toLocaleString()} រៀល</span></div>` : `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`}
     ${methodLabel?`<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`:""}
     ${cashRows}
     ${o.paid
@@ -1617,7 +1729,13 @@ function buildReceiptHTML(o, items, logo, ts, totalKHR) {
   if (tax > 0) html += `<div class="row"><span class="lbl">${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`;
   html += `<hr class="solid">`;
   html += `<div class="row tot"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>`;
-  html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`;
+  if (o.discountAmt > 0.001) {
+    html += `<div class="row" style="color:#a32d2d"><span>🏷️ ${tr("discount")}${o.discountType==="pct"?" ("+o.discountVal+"%)":""}</span><span>-$${o.discountAmt.toFixed(2)}</span></div>`;
+    html += `<div class="row" style="font-weight:bold;color:#2e90b0"><span>${tr("afterDiscount")}</span><span>$${(o.finalTotalUSD||total).toFixed(2)}</span></div>`;
+    html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${(o.finalTotalKHR||totalKHR).toLocaleString()} រៀល</span></div>`;
+  } else {
+    html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`;
+  }
   if (o.paymentMethod) {
     const methodLabel = { cash:tr("cash"), card:tr("card"), qr:tr("qrPay") }[o.paymentMethod] || o.paymentMethod;
     html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`;
@@ -1702,8 +1820,17 @@ async function sendTelegramNewOrder(order) {
 async function sendTelegramPayment(order) {
   const cfg = await getTgCfg(); if (!cfg?.token||!cfg?.chat) return;
   const methodLabel = { cash:"💵 Cash", card:"💳 Card", qr:"📲 QR Pay" }[order.paymentMethod] || "";
-  const lines = [`✅ PAYMENT RECEIVED`,`📋 Table ${order.table}`,
-    `💰 $${(order.totalUSD||order.total||0).toFixed(2)} / ${(order.totalKHR||0).toLocaleString()}រ — PAID`];
+  const baseTotal = (order.totalUSD||order.total||0);
+  const finalTotal = order.finalTotalUSD !== undefined ? order.finalTotalUSD : baseTotal;
+  const lines = [`✅ PAYMENT RECEIVED`,`📋 Table ${order.table}`];
+  if (order.discountAmt > 0.001) {
+    const discLabel = order.discountType === "pct" ? `${order.discountVal}%` : `$${order.discountVal.toFixed(2)}`;
+    lines.push(`💰 Original: $${baseTotal.toFixed(2)}`);
+    lines.push(`🏷️ Discount (${discLabel}): -$${order.discountAmt.toFixed(2)}`);
+    lines.push(`✅ Final Paid: $${finalTotal.toFixed(2)} / ${(order.finalTotalKHR||0).toLocaleString()}រ`);
+  } else {
+    lines.push(`💰 $${baseTotal.toFixed(2)} / ${(order.totalKHR||0).toLocaleString()}រ — PAID`);
+  }
   if (methodLabel) lines.push(methodLabel);
   if (order.paymentMethod === "cash" && order.cashReceived !== undefined) {
     lines.push(`💵 Received: $${(order.cashReceivedUSD||0).toFixed(2)} + ${(order.cashReceivedKHR||0).toLocaleString()}រ`);
@@ -2319,6 +2446,9 @@ input,textarea{font-family:inherit}
 /* Payment method picker */
 .pay-method-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .pay-method-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);font-size:20px;color:var(--text2);transition:all .15s;cursor:pointer}
+.discount-type-btn{padding:8px 6px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .15s;font-family:inherit}
+.discount-type-btn:hover{border-color:var(--green);color:var(--green-dark)}
+.discount-type-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
 .pay-method-btn span{font-size:11px;font-weight:600}
 .pay-method-btn:hover{border-color:var(--green)}
 .pay-method-btn.active{background:var(--green-light);border-color:var(--green);color:var(--green-text)}
@@ -2532,6 +2662,48 @@ input,textarea{font-family:inherit}
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px" data-i18n="amountDue">Amount Due</div>
       <div style="font-size:26px;font-weight:800;color:var(--text)" id="pm-amount-due">$0.00</div>
       <div style="font-size:12px;color:var(--text3)" id="pm-amount-due-khr">0 រៀល</div>
+    </div>
+
+    <!-- DISCOUNT SECTION -->
+    <div style="border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">🏷️ <span data-i18n="discount">Discount</span></div>
+        <button id="pm-discount-remove" onclick="removeDiscount()"
+          style="display:none;background:none;border:none;font-size:11px;color:var(--red);cursor:pointer;font-weight:600">
+          <span data-i18n="removeDiscount">Remove</span>
+        </button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <button class="discount-type-btn active" id="dt-pct" onclick="setDiscountType('pct',this)">
+          <span data-i18n="percentage">Percentage (%)</span>
+        </button>
+        <button class="discount-type-btn" id="dt-fixed" onclick="setDiscountType('fixed',this)">
+          <span data-i18n="fixedAmount">Fixed Amount ($)</span>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="position:relative;flex:1">
+          <span id="pm-discount-prefix" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:700;color:var(--text3)">%</span>
+          <input class="form-input" type="number" id="pm-discount-input" min="0" step="0.01" placeholder="0"
+                 style="padding-left:28px;font-size:16px;font-weight:700" oninput="applyDiscount()">
+        </div>
+        <button class="sm-btn green" onclick="applyDiscount()" style="height:42px;padding:0 16px">
+          <span data-i18n="discountApplied">Apply</span>
+        </button>
+      </div>
+      <div id="pm-discount-result" style="display:none;margin-top:10px;background:var(--green-light);border-radius:var(--radius-sm);padding:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2)">
+          <span data-i18n="discountAmount">Discount</span>
+          <span id="pm-discount-amt" style="font-weight:700;color:var(--red)">-$0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;margin-top:4px">
+          <span data-i18n="afterDiscount">After Discount</span>
+          <div style="text-align:right">
+            <div id="pm-after-discount" style="color:var(--green-dark)">$0.00</div>
+            <div id="pm-after-discount-khr" style="font-size:11px;font-weight:400;color:var(--text3)">0 រៀល</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-label" style="margin-bottom:8px" data-i18n="paymentMethod">Payment Method</div>
