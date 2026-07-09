@@ -1595,11 +1595,9 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   const total = o.totalUSD||o.total||0;
   const finalTotal = o.finalTotalUSD !== undefined ? o.finalTotalUSD : total;
   const finalKHR   = o.finalTotalKHR  !== undefined ? o.finalTotalKHR  : totalKHR;
-  const discountRow = o.discountAmt > 0.001
-    ? `<div class="receipt-order-row" style="color:var(--red)">
-         <span>🏷️ ${tr("discount")} ${o.discountType==="pct" ? `(${o.discountVal}%)` : ""}</span>
-         <span>-$${o.discountAmt.toFixed(2)}</span>
-       </div>`
+  const hasDiscount = o.discountAmt > 0.001;
+  const discountLabel = hasDiscount
+    ? `🏷️ ${tr("discount")} ${o.discountType==="pct" ? `(${o.discountVal}%)` : `($${o.discountVal.toFixed(2)})`}`
     : "";
   const methodLabel = { cash:"💵 "+tr("cash"), card:"💳 "+tr("card"), qr:"📲 "+tr("qrPay") }[o.paymentMethod] || "";
   const cashRows = (o.paymentMethod === "cash" && o.cashReceived !== undefined)
@@ -1610,12 +1608,22 @@ window.showReceipt = (id, retries = 3, directOrder = null) => {
   document.getElementById("r-totals").innerHTML = `
     <hr class="receipt-divider">
     <div class="receipt-order-row"><span>${tr("subtotal")}</span><span>$${sub.toFixed(2)}</span></div>
-    ${tax>0?`<div class="receipt-order-row"><span>${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`:""}
-    <div class="receipt-order-row total-row"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>
-    ${discountRow}
-    ${discountRow ? `<div class="receipt-order-row" style="font-size:14px;font-weight:800;color:var(--green-dark)"><span>${tr("afterDiscount")}</span><span>$${finalTotal.toFixed(2)}</span></div>
-    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${finalKHR.toLocaleString()} រៀល</span></div>` : `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`}
-    ${methodLabel?`<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`:""}
+    ${tax>0 ? `<div class="receipt-order-row"><span>${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>` : ""}
+    ${hasDiscount ? `
+    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)">
+      <span>${tr("total").toUpperCase()} (${tr("subtotal")}+${tr("tax")})</span><span>$${total.toFixed(2)}</span>
+    </div>
+    <div class="receipt-order-row" style="color:var(--red);font-weight:600">
+      <span>${discountLabel}</span><span>-$${o.discountAmt.toFixed(2)}</span>
+    </div>` : ""}
+    <div class="receipt-order-row total-row">
+      <span>${tr("total").toUpperCase()}</span>
+      <span>$${finalTotal.toFixed(2)}</span>
+    </div>
+    <div class="receipt-order-row" style="font-size:12px;color:var(--text3)">
+      <span>KHR</span><span>${finalKHR.toLocaleString()} រៀល</span>
+    </div>
+    ${methodLabel ? `<div class="receipt-order-row" style="font-size:12px;color:var(--text3)"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>` : ""}
     ${cashRows}
     ${o.paid
       ? `<div style="text-align:center;margin-top:14px"><span class="receipt-paid-stamp">${tr("paid").toUpperCase()}</span></div>`
@@ -1727,15 +1735,15 @@ function buildReceiptHTML(o, items, logo, ts, totalKHR) {
   html += `<hr class="dash">`;
   html += `<div class="row"><span class="lbl">${tr("subtotal")}</span><span>$${sub.toFixed(2)}</span></div>`;
   if (tax > 0) html += `<div class="row"><span class="lbl">${tr("tax")} (${settings.tax}%)</span><span>$${tax.toFixed(2)}</span></div>`;
-  html += `<hr class="solid">`;
-  html += `<div class="row tot"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>`;
   if (o.discountAmt > 0.001) {
-    html += `<div class="row" style="color:#a32d2d"><span>🏷️ ${tr("discount")}${o.discountType==="pct"?" ("+o.discountVal+"%)":""}</span><span>-$${o.discountAmt.toFixed(2)}</span></div>`;
-    html += `<div class="row" style="font-weight:bold;color:#2e90b0"><span>${tr("afterDiscount")}</span><span>$${(o.finalTotalUSD||total).toFixed(2)}</span></div>`;
-    html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${(o.finalTotalKHR||totalKHR).toLocaleString()} រៀល</span></div>`;
-  } else {
-    html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${totalKHR.toLocaleString()} រៀល</span></div>`;
+    const dLabel = o.discountType==="pct" ? `${tr("discount")} (${o.discountVal}%)` : `${tr("discount")} ($${o.discountVal.toFixed(2)})`;
+    html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("total").toUpperCase()}</span><span>$${total.toFixed(2)}</span></div>`;
+    html += `<hr class="dash">`;
+    html += `<div class="row" style="color:#a32d2d"><span>🏷️ ${dLabel}</span><span>-$${o.discountAmt.toFixed(2)}</span></div>`;
   }
+  html += `<hr class="solid">`;
+  html += `<div class="row tot"><span>${tr("total").toUpperCase()}</span><span>$${(o.finalTotalUSD !== undefined ? o.finalTotalUSD : total).toFixed(2)}</span></div>`;
+  html += `<div class="row" style="font-size:8pt;color:#888"><span>KHR</span><span>${(o.finalTotalKHR||totalKHR).toLocaleString()} រៀល</span></div>`;
   if (o.paymentMethod) {
     const methodLabel = { cash:tr("cash"), card:tr("card"), qr:tr("qrPay") }[o.paymentMethod] || o.paymentMethod;
     html += `<div class="row" style="font-size:8pt;color:#888"><span>${tr("paymentMethod")}</span><span>${methodLabel}</span></div>`;
@@ -2059,10 +2067,21 @@ function buildESCReceipt(order) {
     padLine(tr("tax") + " (" + settings.tax + "%)", "$" + (order.taxUSD||0).toFixed(2));
     dashes();
   }
+  if (order.discountAmt > 0.001) {
+    const dLabel = order.discountType==="pct"
+      ? tr("discount") + " (" + order.discountVal + "%)"
+      : tr("discount");
+    padLine(tr("total").toUpperCase(), "$" + (order.totalUSD||0).toFixed(2));
+    dashes();
+    padLine(dLabel, "-$" + order.discountAmt.toFixed(2));
+    dashes();
+  }
   push(CMD.BOLD_ON);
-  padLine(tr("total").toUpperCase(), "$" + (order.totalUSD||0).toFixed(2));
+  const finalUSD = order.finalTotalUSD !== undefined ? order.finalTotalUSD : (order.totalUSD||0);
+  const finalKHR = order.finalTotalKHR !== undefined ? order.finalTotalKHR : totalKHR;
+  padLine(tr("total").toUpperCase(), "$" + finalUSD.toFixed(2));
   push(CMD.BOLD_OFF);
-  text("KHR: " + totalKHR.toLocaleString() + " \u179a"); nl();
+  text("KHR: " + finalKHR.toLocaleString() + " \u179a"); nl();
 
   if (order.paymentMethod) {
     const methodLabel = { cash:tr("cash"), card:tr("card"), qr:tr("qrPay") }[order.paymentMethod] || order.paymentMethod;
