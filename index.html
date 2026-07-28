@@ -62,6 +62,12 @@ const I18N = {
     preparing: "Preparing", ready: "Ready", pending: "Pending", paid: "Paid", cancelled: "Cancelled",
     cancelOrder: "Cancel Order", confirmCancel: "Cancel this order?", confirmCancelBody: "This cannot be undone.",
     orderCancelled: "Order cancelled",
+    splitBill: "Split Bill", splitBillTitle: "Split Bill by Items",
+    person: "Person", addPerson: "+ Add Person", removePerson: "Remove",
+    unassigned: "Unassigned", assignTo: "Assign to",
+    collectForPerson: "Collect Payment", allPaid: "All persons paid",
+    splitBillHint: "Tap an item to assign it to a person. Each person pays separately.",
+    personPaid: "Paid", personUnpaid: "Pending",
     collectPaymentPrint: "Collect Payment & Print", printReceipt: "Print Receipt",
     collectPayment: "Collect Payment", amountDue: "Amount Due", paymentMethod: "Payment Method",
     cash: "Cash", card: "Card", qrPay: "QR Pay", cashReceived: "Cash Received",
@@ -153,6 +159,12 @@ const I18N = {
     preparing: "កំពុងធ្វើ", ready: "រួចរាល់", pending: "កំពុងរង់ចាំ", paid: "បានបង់ប្រាក់", cancelled: "បានបោះបង់",
     cancelOrder: "បោះបង់ការកម្ម៉ង់", confirmCancel: "បោះបង់ការកម្ម៉ង់នេះ?", confirmCancelBody: "សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។",
     orderCancelled: "បានបោះបង់ការកម្ម៉ង់",
+    splitBill: "បែងចែកវិក្កយបត្រ", splitBillTitle: "បែងចែកវិក្កយបត្រតាមមុខម្ហូប",
+    person: "អ្នក", addPerson: "+ បន្ថែមអ្នក", removePerson: "លុប",
+    unassigned: "មិនទាន់ចាត់ចែង", assignTo: "ចាត់ចែងទៅ",
+    collectForPerson: "ទទួលប្រាក់", allPaid: "គ្រប់អ្នកបានបង់ប្រាក់",
+    splitBillHint: "ចុចលើមុខម្ហូបដើម្បីចាត់ចែងវាទៅអ្នក។ រៀងៗខ្លួនបង់ប្រាក់ដោយឡែក។",
+    personPaid: "បានបង់", personUnpaid: "កំពុងរង់ចាំ",
     collectPaymentPrint: "ទទួលប្រាក់ & បញ្ចេញវិក្កយបត្រ", printReceipt: "បញ្ចេញវិក្កយបត្រ",
     collectPayment: "ទទួលប្រាក់", amountDue: "ចំនួនត្រូវបង់", paymentMethod: "វិធីបង់ប្រាក់",
     cash: "ប្រាក់សុទ្ធ", card: "កាត", qrPay: "ស្កេន QR", cashReceived: "ប្រាក់ដែលបានទទួល",
@@ -775,6 +787,71 @@ window.clearStaffCart = () => {
   renderStaffOrderPage();
 };
 
+/* ─── ONE ORDER PER TABLE ───
+   mergeOrCreateOrder() is the single entry point for both customer (placeOrder)
+   and staff (sendStaffOrder) order placement.
+   - If the table already has an open (unpaid, non-cancelled) order → merge items in.
+   - Otherwise → create a fresh order document.
+   Returns the firestoreId of the resulting order. */
+async function mergeOrCreateOrder(tableNo, newItems, note, source) {
+  // Find an active (unpaid, non-cancelled) order for this table
+  const existing = orders.find(o =>
+    String(o.table) === String(tableNo) && !o.paid && o.status !== "cancelled"
+  );
+
+  const taxRate = settings.tax / 100;
+
+  if (existing) {
+    // ── MERGE ──────────────────────────────────────────────────────
+    // Deep-copy items array then fold in new items
+    const merged = existing.items.map(i => ({ ...i }));
+    newItems.forEach(ni => {
+      const hit = merged.find(i => i.fsId === ni.fsId);
+      if (hit) hit.qty += ni.qty;          // same item → add qty
+      else merged.push({ ...ni });         // new item → append
+    });
+
+    // Recalculate totals from merged list
+    const sub    = merged.reduce((s,i) => s + (i.priceUSD||0)*i.qty, 0);
+    const subKHR = merged.reduce((s,i) => s + (i.priceKHR||Math.round((i.priceUSD||0)*KHR_RATE))*i.qty, 0);
+    const tax    = sub * taxRate;
+    const combinedNote = [existing.note, note].filter(Boolean).join(" · ");
+
+    const payload = {
+      items: merged,
+      note: combinedNote,
+      subtotalUSD: sub, subtotalKHR: subKHR, taxUSD: tax,
+      totalUSD: sub + tax, totalKHR: Math.round(subKHR * (1 + taxRate)),
+      updatedAt: new Date().toISOString()
+    };
+
+    await updateDoc(doc(db, "orders", existing.firestoreId), payload);
+
+    // Update local copy immediately
+    const idx = orders.findIndex(o => o.firestoreId === existing.firestoreId);
+    if (idx !== -1) orders[idx] = { ...orders[idx], ...payload };
+
+    return existing.firestoreId;
+  } else {
+    // ── CREATE ─────────────────────────────────────────────────────
+    const sub    = newItems.reduce((s,i) => s + (i.priceUSD||0)*i.qty, 0);
+    const subKHR = newItems.reduce((s,i) => s + (i.priceKHR||Math.round((i.priceUSD||0)*KHR_RATE))*i.qty, 0);
+    const tax    = sub * taxRate;
+    const order  = {
+      table: tableNo, items: newItems, note: note || "",
+      status: "pending", paid: false, source: source || "customer",
+      subtotalUSD: sub, subtotalKHR: subKHR, taxUSD: tax,
+      totalUSD: sub + tax, totalKHR: Math.round(subKHR * (1 + taxRate)),
+      time: new Date().toISOString()
+    };
+
+    const ref = await addDoc(ordersCol(), { ...order, createdAt: serverTimestamp() });
+    order.firestoreId = ref.id;
+    orders.unshift(order);   // add to local list immediately
+    return ref.id;
+  }
+}
+
 window.sendStaffOrder = async () => {
   if (!currentAdmin) { toast(tr("loginRequiredStaffOrder")); return; }
   if (!staffTable)    { toast(tr("tableRequired")); return; }
@@ -789,31 +866,20 @@ window.sendStaffOrder = async () => {
     }).filter(Boolean);
   if (!cartItems.length) { toast(tr("itemsRequired")); return; }
 
-  const sub    = cartItems.reduce((s,i) => s + i.priceUSD*i.qty, 0);
-  const subKHR = cartItems.reduce((s,i) => s + i.priceKHR*i.qty, 0);
-  const tax    = sub * (settings.tax/100);
-  const note   = document.getElementById("so-note")?.value || "";
-  const order  = {
-    table: staffTable, items: cartItems, note,
-    status: "pending", paid: false,
-    subtotalUSD: sub, subtotalKHR: subKHR, taxUSD: tax,
-    totalUSD: sub + tax, totalKHR: Math.round(subKHR*(1+settings.tax/100)),
-    time: new Date().toISOString(),
-    source: "staff"   // distinguishes staff-placed from customer-placed orders
-  };
-
-  const btn = document.getElementById("so-send-btn");
+  const note = document.getElementById("so-note")?.value || "";
+  const btn  = document.getElementById("so-send-btn");
   if (btn) { btn.disabled = true; btn.textContent = tr("sending"); }
 
   try {
-    await addDoc(ordersCol(), { ...order, createdAt: serverTimestamp() });
-    sendTelegramNewOrder({ ...order, table: staffTable });
+    const fsId = await mergeOrCreateOrder(staffTable, cartItems, note, "staff");
+    const finalOrder = orders.find(o => o.firestoreId === fsId);
+    if (finalOrder) sendTelegramNewOrder(finalOrder);
+
     staffCart = {};
     staffTable = null;
     window._soActiveCat = "All";
     toast(tr("staffOrderSent"));
     renderStaffOrderPage();
-    // Switch to admin orders so staff can see it immediately
     switchPage("admin");
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = tr("sendOrder"); }
@@ -823,54 +889,48 @@ window.sendStaffOrder = async () => {
 
 window.placeOrder = async () => {
   if (!cart.length) return;
-  const btn = document.getElementById("place-btn");
+  const btn  = document.getElementById("place-btn");
   if (btn) { btn.disabled = true; btn.textContent = tr("sending"); }
-  const note  = document.getElementById("order-note")?.value || "";
-  const sub   = cart.reduce((s, c) => s + (Number(c.priceUSD)||0) * c.qty, 0);
-  const subKHR = cart.reduce((s, c) => s + (c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE)) * c.qty, 0);
-  const tax   = sub * (settings.tax / 100);
+  const note = document.getElementById("order-note")?.value || "";
   const items = cart.map(c => ({
     fsId: c.fsId, name: c.name, emoji: c.emoji||"", photoURL: c.photoURL||"",
     priceUSD: Number(c.priceUSD)||0,
     priceKHR: c.priceKHR ? Number(c.priceKHR) : Math.round((Number(c.priceUSD)||0)*KHR_RATE),
     qty: c.qty
   }));
-  const order = { table: settings.table, items, note, status: "pending",
-    subtotalUSD: sub, subtotalKHR: subKHR, taxUSD: tax,
-    totalUSD: sub + tax, totalKHR: Math.round(subKHR * (1 + settings.tax/100)),
-    time: new Date().toISOString(), paid: false };
+
   try {
-    const ref = await addDoc(ordersCol(), { ...order, createdAt: serverTimestamp() });
-    order.firestoreId = ref.id;
+    const fsId = await mergeOrCreateOrder(settings.table, items, note, "customer");
+    const finalOrder = orders.find(o => o.firestoreId === fsId);
+    if (finalOrder) sendTelegramNewOrder(finalOrder);
 
-    // ✅ Add to local orders immediately so showReceipt works straight away
-    // (Firestore listener may take a moment to update)
-    orders.unshift(order);
-
-    sendTelegramNewOrder(order);
     cart = []; updateCartFloat();
+
+    // Show confirmation screen
+    const displayItems = finalOrder ? finalOrder.items : items;
+    const displayTotal = finalOrder ? finalOrder.totalUSD : items.reduce((s,i)=>s+(i.priceUSD||0)*i.qty,0);
+    const displayKHR   = finalOrder ? finalOrder.totalKHR  : Math.round(displayTotal * KHR_RATE);
+
     document.getElementById("cart-body").innerHTML = `
       <div class="confirm-wrap">
         <div class="confirm-icon">✅</div>
         <div class="confirm-title">${tr("orderSent")}</div>
         <div class="confirm-sub">
-          ${tr("table")} ${order.table}<br>
+          ${tr("table")} ${settings.table}<br>
           <span style="font-size:13px;color:var(--text3)">${tr("pleaseWaitStaff")}</span>
         </div>
         <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:16px 0;text-align:left">
-          ${order.items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">
+          ${displayItems.map(i=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">
             <span>${i.qty}× ${i.name}</span>
             <span style="font-weight:600;color:var(--green)">$${((i.priceUSD||0)*i.qty).toFixed(2)}</span>
           </div>`).join("")}
           <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:10px;margin-top:4px">
             <span>${tr("total")}</span>
-            <span>$${(order.totalUSD).toFixed(2)} <span style="font-size:11px;font-weight:400;color:var(--text3)">/ ${order.totalKHR.toLocaleString()}រ</span></span>
+            <span>$${displayTotal.toFixed(2)} <span style="font-size:11px;font-weight:400;color:var(--text3)">/ ${displayKHR.toLocaleString()}រ</span></span>
           </div>
         </div>
         <div class="confirm-btns">
-          <button class="btn btn-green" onclick="switchPage('menu')">
-            ${tr("orderMoreItems")}
-          </button>
+          <button class="btn btn-green" onclick="switchPage('menu')">${tr("orderMoreItems")}</button>
         </div>
       </div>`;
   } catch(e) {
@@ -984,6 +1044,10 @@ function renderAdmin() {
         <button class="pay-collect-btn${o.status==='ready'?'':' pay-collect-dim'}"
           onclick="collectPayment('${o.firestoreId}')">
           💰 ${tr("collectPaymentPrint")} · $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ
+        </button>
+        <button class="order-action-btn" style="width:100%;justify-content:center;border-color:var(--blue);color:var(--blue)"
+          onclick="openSplitModal('${o.firestoreId}')">
+          ✂️ ${tr("splitBill")}
         </button>
         <button class="order-action-btn" style="width:100%;justify-content:center;color:var(--red);border-color:var(--red)"
           onclick="openCancelModal('${o.firestoreId}')">
@@ -1200,7 +1264,6 @@ window.confirmCancelOrder = async () => {
   closeCancelModal();
   try {
     await updateDoc(doc(db,"orders",id), { status:"cancelled", cancelledAt: new Date().toISOString() });
-    // Update local orders immediately so the card flips without waiting for snapshot
     const idx = orders.findIndex(o => o.firestoreId === id);
     if (idx !== -1) orders[idx] = { ...orders[idx], status:"cancelled" };
     toast(tr("orderCancelled"));
@@ -1209,6 +1272,317 @@ window.confirmCancelOrder = async () => {
     if (e.code === "permission-denied") { showFirestoreFixBanner(); toast(tr("firestoreRulesBlockingUpdates")); }
     else toast(tr("error") + ": " + e.message);
   }
+};
+
+/* ─── SPLIT BILL ─── */
+const PERSON_COLORS = ["#E05C5C","#4A90D9","#50B86C","#D4A017","#9B59B6","#E67E22","#1ABC9C","#E91E63"];
+let splitOrderId  = null;
+let splitPersons  = [];  // [{id, name, color, paid, paymentMethod, cashReceived, cashChange}]
+let splitAssign   = {};  // { [itemIndex+":"+subIdx]: personId }
+                         //   itemIndex = position in o.items, subIdx for qty>1 splits
+
+window.openSplitModal = id => {
+  const o = orders.find(o => o.firestoreId === id);
+  if (!o) { toast(tr("orderNotFound")); return; }
+  splitOrderId = id;
+  // Default: 2 persons, no assignments
+  splitPersons = [
+    { id:"p1", name:`${tr("person")} 1`, color:PERSON_COLORS[0], paid:false },
+    { id:"p2", name:`${tr("person")} 2`, color:PERSON_COLORS[1], paid:false },
+  ];
+  splitAssign = {};
+  const t = new Date(o.time);
+  document.getElementById("split-order-meta").textContent =
+    `${tr("table")} ${o.table} · ${o.items.reduce((s,i)=>s+i.qty,0)} items · $${(o.totalUSD||o.total||0).toFixed(2)}`;
+  document.getElementById("split-modal").classList.add("open");
+  renderSplitModal();
+};
+
+window.closeSplitModal = () => {
+  document.getElementById("split-modal").classList.remove("open");
+  splitOrderId = null;
+};
+
+window.addSplitPerson = () => {
+  const n = splitPersons.length + 1;
+  splitPersons.push({
+    id:"p"+n, name:`${tr("person")} ${n}`,
+    color: PERSON_COLORS[(n-1) % PERSON_COLORS.length], paid:false
+  });
+  renderSplitModal();
+};
+
+window.removeSplitPerson = pid => {
+  if (splitPersons.length <= 2) { toast("Need at least 2 persons"); return; }
+  splitPersons = splitPersons.filter(p => p.id !== pid);
+  // Unassign any items that were assigned to this person
+  Object.keys(splitAssign).forEach(k => { if (splitAssign[k] === pid) delete splitAssign[k]; });
+  renderSplitModal();
+};
+
+window.assignItem = (key, pid) => {
+  // Toggle: if already assigned to this person, unassign; else assign
+  splitAssign[key] = (splitAssign[key] === pid) ? null : pid;
+  renderSplitModal();
+};
+
+function buildSplitItemKeys(items) {
+  // Expand items into individual unit rows (qty 3 → 3 separate assignable rows)
+  const rows = [];
+  items.forEach((item, idx) => {
+    for (let s = 0; s < item.qty; s++) {
+      rows.push({ key:`${idx}:${s}`, item, idx, s });
+    }
+  });
+  return rows;
+}
+
+function personTotal(pid, o) {
+  const rows = buildSplitItemKeys(o.items);
+  const assignedRows = rows.filter(r => splitAssign[r.key] === pid);
+  const sub = assignedRows.reduce((s,r) => s + (r.item.priceUSD||0), 0);
+  const tax = sub * (settings.tax/100);
+  return { sub, tax, total: sub+tax, khr: Math.round((sub+tax)*KHR_RATE), rows: assignedRows };
+}
+
+function renderSplitModal() {
+  const o = orders.find(o => o.firestoreId === splitOrderId);
+  if (!o) return;
+  const rows = buildSplitItemKeys(o.items);
+
+  // — Person tabs —
+  document.getElementById("split-person-tabs").innerHTML = splitPersons.map(p => `
+    <div class="split-person-tab${splitPersons.length>0?' active':''}" style="background:${p.color};color:#fff;display:flex;align-items:center;gap:6px">
+      <span>${p.name}</span>
+      ${splitPersons.length > 2 ? `<span onclick="removeSplitPerson('${p.id}')" style="cursor:pointer;opacity:.8;font-size:14px">✕</span>` : ""}
+    </div>`).join("");
+
+  // — Item assignment list —
+  document.getElementById("split-items-list").innerHTML = `
+    <div style="font-size:11px;color:var(--text3);padding:4px 0 8px" data-i18n="splitBillHint">${tr("splitBillHint")}</div>
+    ${rows.map(r => {
+      const pid = splitAssign[r.key] || null;
+      const p   = pid ? splitPersons.find(x => x.id === pid) : null;
+      const assignBtns = splitPersons.map(sp =>
+        `<button class="split-assign-btn${splitAssign[r.key]===sp.id?' assigned':''}"
+          style="${splitAssign[r.key]===sp.id?`background:${sp.color};`:''}font-size:10px"
+          onclick="assignItem('${r.key}','${sp.id}')">${sp.name}</button>`
+      ).join("");
+      return `
+        <div class="split-item-row">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${r.item.name}</div>
+            <div style="font-size:11px;color:var(--text3)">$${(r.item.priceUSD||0).toFixed(2)}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${assignBtns}</div>
+        </div>`;
+    }).join("")}`;
+
+  // — Per-person summary + collect buttons —
+  const taxRate = settings.tax/100;
+  let summaryHTML = "";
+  const allPersonsPaid = splitPersons.every(p => p.paid);
+
+  splitPersons.forEach(p => {
+    const pt = personTotal(p.id, o);
+    if (p.paid) {
+      summaryHTML += `
+        <div class="split-person-summary" style="background:var(--green-light);border:1px solid var(--green)">
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--green-text)">
+            <span>✅ ${p.name}</span><span>$${pt.total.toFixed(2)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--green-text);opacity:.75">${tr("personPaid")}</div>
+        </div>`;
+    } else if (pt.rows.length === 0) {
+      summaryHTML += `
+        <div class="split-person-summary" style="background:var(--surface2);border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text3)">
+            <span>${p.name}</span><span>${tr("unassigned")}</span>
+          </div>
+        </div>`;
+    } else {
+      summaryHTML += `
+        <div class="split-person-summary" style="background:var(--surface2);border:1.5px solid ${p.color}">
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--text)">
+            <span>${p.name}</span>
+            <div style="text-align:right">
+              <div>$${pt.total.toFixed(2)}</div>
+              <div style="font-size:10px;font-weight:400;color:var(--text3)">${pt.khr.toLocaleString()}រ</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">
+            ${pt.rows.map(r=>r.item.name).join(", ")}
+          </div>
+          <button class="split-collect-btn" style="background:${p.color};color:#fff;margin-top:8px"
+            onclick="collectSplitPayment('${p.id}')">
+            💰 ${tr("collectForPerson")} — ${p.name}
+          </button>
+        </div>`;
+    }
+  });
+
+  if (allPersonsPaid) {
+    summaryHTML += `
+      <div style="text-align:center;padding:10px;background:var(--green-light);border-radius:var(--radius-sm);font-weight:700;color:var(--green-text)">
+        🎉 ${tr("allPaid")}
+      </div>`;
+  }
+
+  document.getElementById("split-summary").innerHTML = summaryHTML;
+}
+
+// Opens the regular payment modal but scoped to one person's sub-total
+window.collectSplitPayment = pid => {
+  const o = orders.find(o => o.firestoreId === splitOrderId);
+  if (!o) return;
+  const p  = splitPersons.find(x => x.id === pid);
+  const pt = personTotal(pid, o);
+  if (!pt.rows.length) { toast(tr("unassigned") + " — " + tr("assignTo")); return; }
+
+  // Build a synthetic order-like object for the payment modal
+  const syntheticOrder = {
+    firestoreId: splitOrderId + "__" + pid,   // unique key just for modal state
+    table: o.table,
+    totalUSD: pt.total,
+    totalKHR: pt.khr,
+    items: pt.rows.map(r => ({ ...r.item, qty:1 })),
+    _splitPid: pid,    // flags this as a split payment
+    _splitReal: splitOrderId,
+  };
+
+  // Temporarily register the synthetic order so openPaymentModal can find it
+  window._splitSyntheticOrder = syntheticOrder;
+  openSplitPaymentModal(syntheticOrder, p);
+};
+
+// Separate thin wrapper around the payment modal for split payments
+function openSplitPaymentModal(synthOrder, person) {
+  pmOrderId = synthOrder.firestoreId;
+  pmMethod  = "cash";
+  pmDiscountType = "pct"; pmDiscountVal = 0;
+
+  document.getElementById("pm-order-meta").textContent =
+    `${tr("table")} ${synthOrder.table} · ${person.name}`;
+  document.getElementById("pm-amount-due").textContent  = `$${synthOrder.totalUSD.toFixed(2)}`;
+  document.getElementById("pm-amount-due-khr").textContent = `${synthOrder.totalKHR.toLocaleString()} រៀល`;
+  document.getElementById("pm-cash-received-usd").value = "";
+  document.getElementById("pm-cash-received-khr").value = "";
+  document.getElementById("pm-change").textContent = "$0.00";
+  document.getElementById("pm-change-khr").textContent = "0 រៀល";
+  document.getElementById("pm-change").style.color = "var(--green-dark)";
+  document.getElementById("pm-change-warn").style.display = "none";
+  document.getElementById("pm-confirm-btn").disabled = true;
+  document.getElementById("pm-confirm-btn").textContent = tr("confirmPaymentReceived");
+  document.getElementById("pm-discount-input").value = "";
+  document.getElementById("pm-discount-result").style.display = "none";
+  document.getElementById("pm-discount-remove").style.display = "none";
+  document.querySelectorAll(".discount-type-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("dt-pct").classList.add("active");
+  document.getElementById("pm-discount-prefix").textContent = "%";
+  document.querySelectorAll(".pay-method-btn").forEach(b => b.classList.toggle("active", b.dataset.method==="cash"));
+  document.getElementById("pm-cash-block").style.display = "block";
+  updateQuickCash(synthOrder.totalUSD);
+
+  // Override pmEffectiveTotal to use the synthetic order's total
+  window._splitPayingPid = person.id;
+  document.getElementById("payment-modal").classList.add("open");
+}
+
+// Override confirmPayment's total lookup for split payments
+const _origConfirmPayment = window.confirmPayment;
+window.confirmPayment = async () => {
+  // Check if this is a split payment
+  if (pmOrderId && pmOrderId.includes("__") && window._splitPayingPid) {
+    const pid   = window._splitPayingPid;
+    const realId = pmOrderId.split("__")[0];
+    const o     = orders.find(o => o.firestoreId === realId);
+    const p     = splitPersons.find(x => x.id === pid);
+    const syn   = window._splitSyntheticOrder;
+    if (!o || !p || !syn) return;
+
+    const effectiveUSD = pmEffectiveTotal.call({ _overrideTotal: syn.totalUSD }) || syn.totalUSD;
+    // pmEffectiveTotal reads from pmOrderId which points to the synthetic; patch it
+    // Simpler: read the discount directly
+    const discountAmt = pmDiscountVal > 0
+      ? (pmDiscountType==="pct" ? syn.totalUSD*pmDiscountVal/100 : Math.min(pmDiscountVal,syn.totalUSD))
+      : 0;
+    const finalUSD = Math.max(0, syn.totalUSD - discountAmt);
+
+    const btn = document.getElementById("pm-confirm-btn");
+    btn.disabled = true; btn.textContent = tr("processing");
+
+    // Mark person as paid
+    p.paid = true;
+    p.paymentMethod = pmMethod;
+    if (pmMethod === "cash") {
+      const recvUSD = parseFloat(document.getElementById("pm-cash-received-usd").value)||0;
+      const recvKHR = parseFloat(document.getElementById("pm-cash-received-khr").value)||0;
+      p.cashReceivedUSD = recvUSD;
+      p.cashReceivedKHR = recvKHR;
+      p.cashChange = (recvUSD + recvKHR/KHR_RATE) - finalUSD;
+      p.cashChangeKHR = Math.round(p.cashChange * KHR_RATE);
+    }
+    if (discountAmt > 0.001) { p.discountAmt = discountAmt; p.finalTotal = finalUSD; }
+
+    closePaymentModal();
+    window._splitPayingPid = null;
+
+    // Build and show a per-person receipt
+    const personOrder = {
+      firestoreId: realId,
+      table: o.table,
+      items: syn.items,
+      note: `${p.name}`,
+      subtotalUSD: syn.totalUSD,
+      taxUSD: syn.totalUSD - syn.totalUSD/(1+settings.tax/100), // approx
+      totalUSD: syn.totalUSD,
+      totalKHR: syn.totalKHR,
+      finalTotalUSD: finalUSD,
+      finalTotalKHR: Math.round(finalUSD*KHR_RATE),
+      discountAmt: discountAmt>0.001?discountAmt:undefined,
+      discountType: pmDiscountType,
+      discountVal: pmDiscountVal,
+      paymentMethod: pmMethod,
+      cashReceivedUSD: p.cashReceivedUSD,
+      cashReceivedKHR: p.cashReceivedKHR,
+      cashChange: p.cashChange,
+      cashChangeKHR: p.cashChangeKHR,
+      paid: true,
+    };
+    showReceipt(realId, 3, personOrder);
+
+    // Check if all persons with assigned items are paid
+    const allDone = splitPersons
+      .filter(x => personTotal(x.id, o).rows.length > 0)
+      .every(x => x.paid);
+
+    if (allDone) {
+      // Mark the whole order as paid in Firestore
+      try {
+        const splitLog = splitPersons.map(px => ({
+          name:px.name, paid:px.paid,
+          method:px.paymentMethod, change:px.cashChange||0
+        }));
+        await updateDoc(doc(db,"orders",realId), {
+          paid:true, status:"paid",
+          paidAt: new Date().toISOString(),
+          paymentMethod:"split",
+          splitLog
+        });
+        const idx = orders.findIndex(x=>x.firestoreId===realId);
+        if (idx!==-1) orders[idx]={...orders[idx],paid:true,status:"paid"};
+        toast(tr("allPaid"));
+        closeSplitModal();
+        if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
+      } catch(e) { toast(tr("error")+": "+e.message); }
+    } else {
+      // Update split modal behind the receipt
+      renderSplitModal();
+    }
+    return;
+  }
+  // Not a split payment — call original
+  return _origConfirmPayment();
 };
 
 // Collect payment — opens Payment modal (method + cash calculator) instead of paying instantly
@@ -1398,9 +1772,10 @@ window.closePaymentModal = () => {
 /* ─── DISCOUNT LOGIC ─── */
 // Returns the effective USD total after applying the current discount
 function pmEffectiveTotal() {
-  const o = orders.find(o => o.firestoreId === pmOrderId);
-  if (!o) return 0;
-  const base = o.totalUSD || o.total || 0;
+  // During split payment, use the synthetic order's total instead of looking up orders[]
+  const base = (window._splitSyntheticOrder && pmOrderId && pmOrderId.includes("__"))
+    ? (window._splitSyntheticOrder.totalUSD || 0)
+    : (() => { const o = orders.find(o => o.firestoreId === pmOrderId); return o ? (o.totalUSD||o.total||0) : 0; })();
   if (!pmDiscountVal || pmDiscountVal <= 0) return base;
   if (pmDiscountType === "pct") {
     const pct = Math.min(pmDiscountVal, 100);
@@ -2489,6 +2864,7 @@ window.toast = msg => {
 document.getElementById("receipt-modal").addEventListener("click",function(e){if(e.target===this)closeReceipt();});
 document.getElementById("payment-modal").addEventListener("click",function(e){if(e.target===this)closePaymentModal();});
 document.getElementById("cancel-modal").addEventListener("click",function(e){if(e.target===this)closeCancelModal();});
+document.getElementById("split-modal").addEventListener("click",function(e){if(e.target===this)closeSplitModal();});
 
 boot();
 </script>
@@ -2665,6 +3041,16 @@ input,textarea{font-family:inherit}
 .st-paid{background:var(--green-light);color:var(--green-text)}
 .st-cancelled{background:var(--red-light);color:var(--red)}
 .order-card-cancelled{opacity:.6;filter:grayscale(.4)}
+/* Split Bill */
+.split-person-tab{padding:6px 14px;border-radius:50px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;color:var(--text2)}
+.split-person-tab.active{color:#fff;border-color:transparent}
+.split-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.split-item-row:last-child{border-bottom:none}
+.split-assign-btn{padding:4px 10px;border-radius:50px;border:1.5px solid var(--border);background:var(--surface);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;color:var(--text3)}
+.split-assign-btn.assigned{color:#fff;border-color:transparent}
+.split-person-summary{border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px}
+.split-collect-btn{width:100%;padding:10px;border-radius:var(--radius-sm);border:none;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+.split-collect-btn:hover{opacity:.88}
 .order-card-items{font-size:12px;color:var(--text3);line-height:1.7;margin-bottom:8px}
 .order-card-note{font-size:12px;color:var(--amber);margin-bottom:8px}
 .order-card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -2952,6 +3338,29 @@ input,textarea{font-family:inherit}
   <button class="nav-btn" id="nav-setup" onclick="switchPage('setup')">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-i18n="setup">Setup</span>
   </button>
+</div>
+
+<!-- Split Bill Modal -->
+<div class="modal-overlay" id="split-modal">
+  <div class="receipt-sheet" style="max-height:92vh;padding:0">
+    <div style="padding:16px 16px 0">
+      <div class="receipt-drag"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--text)" data-i18n="splitBillTitle">Split Bill by Items</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px" id="split-order-meta"></div>
+        </div>
+        <button onclick="closeSplitModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+      </div>
+      <!-- Person tabs -->
+      <div id="split-person-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <button class="sm-btn" onclick="addSplitPerson()" style="margin-bottom:12px;width:100%;justify-content:center" data-i18n="addPerson">+ Add Person</button>
+    </div>
+    <!-- Items assignment list -->
+    <div id="split-items-list" style="overflow-y:auto;max-height:42vh;padding:0 16px;margin-bottom:0"></div>
+    <!-- Per-person summary + collect buttons -->
+    <div id="split-summary" style="padding:12px 16px;border-top:1px solid var(--border)"></div>
+  </div>
 </div>
 
 <!-- Cancel Order Confirmation Modal -->
