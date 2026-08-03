@@ -658,9 +658,23 @@ function renderStaffOrderPage() {
   }
 
   const maxTables = parseInt(settings.tableCount) || 12;
-  const tableButtons = Array.from({length: maxTables}, (_,i) => i+1).map(n =>
-    `<button class="so-table-btn${staffTable===n?" active":""}" onclick="selectStaffTable(${n})">${n}</button>`
-  ).join("");
+
+  // Build a set of table numbers that currently have an active (unpaid, non-cancelled) order
+  const occupiedTables = new Set(
+    orders
+      .filter(o => !o.paid && o.status !== "cancelled")
+      .map(o => Number(o.table))
+  );
+
+  const tableButtons = Array.from({length: maxTables}, (_,i) => i+1).map(n => {
+    const isSelected = staffTable === n;
+    const isOccupied = occupiedTables.has(n);
+    let cls = "so-table-btn";
+    if (isSelected) cls += " active";
+    else if (isOccupied) cls += " occupied";
+    const title = isOccupied ? `Table ${n} — has open order` : `Table ${n}`;
+    return `<button class="${cls}" onclick="selectStaffTable(${n})" title="${title}">${n}</button>`;
+  }).join("");
 
   // Build menu grid grouped by category
   const cats = ["All", ...new Set(menuItems.map(m => m.cat).filter(Boolean))];
@@ -732,9 +746,25 @@ function renderStaffOrderPage() {
         📍 ${tr("selectTable")}
       </div>
       <div class="so-table-grid">${tableButtons}</div>
+      <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)">
+          <div style="width:12px;height:12px;border-radius:3px;background:var(--surface);border:1.5px solid var(--border)"></div>
+          Available
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)">
+          <div style="width:12px;height:12px;border-radius:3px;background:#FFF3CD;border:1.5px solid #E6A817"></div>
+          Has open order
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)">
+          <div style="width:12px;height:12px;border-radius:3px;background:var(--green);border:1.5px solid var(--green)"></div>
+          Selected
+        </div>
+      </div>
       ${staffTable
-        ? `<div style="margin-top:8px;font-size:13px;font-weight:700;color:var(--green-dark)">
-             ✓ ${tr("orderFor")} Table ${staffTable}
+        ? `<div style="margin-top:8px;font-size:13px;font-weight:700;color:${occupiedTables.has(staffTable)?'#8B6200':'var(--green-dark)'}">
+             ${occupiedTables.has(staffTable)
+               ? `🟡 Table ${staffTable} — items will be added to existing order`
+               : `✓ ${tr("orderFor")} Table ${staffTable}`}
            </div>`
         : `<div style="margin-top:6px;font-size:12px;color:var(--text3)">${tr("selectTableHint")}</div>`}
     </div>
@@ -1439,19 +1469,18 @@ window.collectSplitPayment = pid => {
   const pt = personTotal(pid, o);
   if (!pt.rows.length) { toast(tr("unassigned") + " — " + tr("assignTo")); return; }
 
-  // Build a synthetic order-like object for the payment modal
   const syntheticOrder = {
-    firestoreId: splitOrderId + "__" + pid,   // unique key just for modal state
+    firestoreId: splitOrderId + "__" + pid,
     table: o.table,
     totalUSD: pt.total,
     totalKHR: pt.khr,
     items: pt.rows.map(r => ({ ...r.item, qty:1 })),
-    _splitPid: pid,    // flags this as a split payment
+    _splitPid: pid,
     _splitReal: splitOrderId,
   };
 
-  // Temporarily register the synthetic order so openPaymentModal can find it
   window._splitSyntheticOrder = syntheticOrder;
+  window._splitPayingPid = pid;
   openSplitPaymentModal(syntheticOrder, p);
 };
 
@@ -1482,108 +1511,8 @@ function openSplitPaymentModal(synthOrder, person) {
   document.querySelectorAll(".pay-method-btn").forEach(b => b.classList.toggle("active", b.dataset.method==="cash"));
   document.getElementById("pm-cash-block").style.display = "block";
   updateQuickCash(synthOrder.totalUSD);
-
-  // Override pmEffectiveTotal to use the synthetic order's total
-  window._splitPayingPid = person.id;
   document.getElementById("payment-modal").classList.add("open");
 }
-
-// Override confirmPayment's total lookup for split payments
-const _origConfirmPayment = window.confirmPayment;
-window.confirmPayment = async () => {
-  // Check if this is a split payment
-  if (pmOrderId && pmOrderId.includes("__") && window._splitPayingPid) {
-    const pid   = window._splitPayingPid;
-    const realId = pmOrderId.split("__")[0];
-    const o     = orders.find(o => o.firestoreId === realId);
-    const p     = splitPersons.find(x => x.id === pid);
-    const syn   = window._splitSyntheticOrder;
-    if (!o || !p || !syn) return;
-
-    const effectiveUSD = pmEffectiveTotal.call({ _overrideTotal: syn.totalUSD }) || syn.totalUSD;
-    // pmEffectiveTotal reads from pmOrderId which points to the synthetic; patch it
-    // Simpler: read the discount directly
-    const discountAmt = pmDiscountVal > 0
-      ? (pmDiscountType==="pct" ? syn.totalUSD*pmDiscountVal/100 : Math.min(pmDiscountVal,syn.totalUSD))
-      : 0;
-    const finalUSD = Math.max(0, syn.totalUSD - discountAmt);
-
-    const btn = document.getElementById("pm-confirm-btn");
-    btn.disabled = true; btn.textContent = tr("processing");
-
-    // Mark person as paid
-    p.paid = true;
-    p.paymentMethod = pmMethod;
-    if (pmMethod === "cash") {
-      const recvUSD = parseFloat(document.getElementById("pm-cash-received-usd").value)||0;
-      const recvKHR = parseFloat(document.getElementById("pm-cash-received-khr").value)||0;
-      p.cashReceivedUSD = recvUSD;
-      p.cashReceivedKHR = recvKHR;
-      p.cashChange = (recvUSD + recvKHR/KHR_RATE) - finalUSD;
-      p.cashChangeKHR = Math.round(p.cashChange * KHR_RATE);
-    }
-    if (discountAmt > 0.001) { p.discountAmt = discountAmt; p.finalTotal = finalUSD; }
-
-    closePaymentModal();
-    window._splitPayingPid = null;
-
-    // Build and show a per-person receipt
-    const personOrder = {
-      firestoreId: realId,
-      table: o.table,
-      items: syn.items,
-      note: `${p.name}`,
-      subtotalUSD: syn.totalUSD,
-      taxUSD: syn.totalUSD - syn.totalUSD/(1+settings.tax/100), // approx
-      totalUSD: syn.totalUSD,
-      totalKHR: syn.totalKHR,
-      finalTotalUSD: finalUSD,
-      finalTotalKHR: Math.round(finalUSD*KHR_RATE),
-      discountAmt: discountAmt>0.001?discountAmt:undefined,
-      discountType: pmDiscountType,
-      discountVal: pmDiscountVal,
-      paymentMethod: pmMethod,
-      cashReceivedUSD: p.cashReceivedUSD,
-      cashReceivedKHR: p.cashReceivedKHR,
-      cashChange: p.cashChange,
-      cashChangeKHR: p.cashChangeKHR,
-      paid: true,
-    };
-    showReceipt(realId, 3, personOrder);
-
-    // Check if all persons with assigned items are paid
-    const allDone = splitPersons
-      .filter(x => personTotal(x.id, o).rows.length > 0)
-      .every(x => x.paid);
-
-    if (allDone) {
-      // Mark the whole order as paid in Firestore
-      try {
-        const splitLog = splitPersons.map(px => ({
-          name:px.name, paid:px.paid,
-          method:px.paymentMethod, change:px.cashChange||0
-        }));
-        await updateDoc(doc(db,"orders",realId), {
-          paid:true, status:"paid",
-          paidAt: new Date().toISOString(),
-          paymentMethod:"split",
-          splitLog
-        });
-        const idx = orders.findIndex(x=>x.firestoreId===realId);
-        if (idx!==-1) orders[idx]={...orders[idx],paid:true,status:"paid"};
-        toast(tr("allPaid"));
-        closeSplitModal();
-        if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
-      } catch(e) { toast(tr("error")+": "+e.message); }
-    } else {
-      // Update split modal behind the receipt
-      renderSplitModal();
-    }
-    return;
-  }
-  // Not a split payment — call original
-  return _origConfirmPayment();
-};
 
 // Collect payment — opens Payment modal (method + cash calculator) instead of paying instantly
 window.collectPayment = id => {
@@ -1704,6 +1633,97 @@ window.calcChange = () => {
 };
 
 window.confirmPayment = async () => {
+  /* ── SPLIT PAYMENT PATH ── */
+  if (pmOrderId && pmOrderId.includes("__") && window._splitPayingPid) {
+    const pid    = window._splitPayingPid;
+    const realId = pmOrderId.split("__")[0];
+    const o      = orders.find(o => o.firestoreId === realId);
+    const p      = splitPersons.find(x => x.id === pid);
+    const syn    = window._splitSyntheticOrder;
+    if (!o || !p || !syn) return;
+
+    const effectiveUSD = pmEffectiveTotal();
+    const discountAmt  = syn.totalUSD - effectiveUSD;
+    const finalUSD     = effectiveUSD;
+    const finalKHR     = Math.round(finalUSD * KHR_RATE);
+
+    const btn = document.getElementById("pm-confirm-btn");
+    btn.disabled = true; btn.textContent = tr("processing");
+
+    // Record payment details on the person object
+    p.paid = true;
+    p.paymentMethod = pmMethod;
+    if (pmMethod === "cash") {
+      const recvUSD = parseFloat(document.getElementById("pm-cash-received-usd").value)||0;
+      const recvKHR = parseFloat(document.getElementById("pm-cash-received-khr").value)||0;
+      p.cashReceivedUSD = recvUSD;
+      p.cashReceivedKHR = recvKHR;
+      p.cashChange      = (recvUSD + recvKHR/KHR_RATE) - finalUSD;
+      p.cashChangeKHR   = Math.round(p.cashChange * KHR_RATE);
+    }
+    if (discountAmt > 0.001) { p.discountAmt = discountAmt; p.finalTotal = finalUSD; }
+
+    closePaymentModal();
+    window._splitPayingPid = null;
+    window._splitSyntheticOrder = null;
+
+    // Show per-person receipt
+    const personOrder = {
+      firestoreId: realId,
+      table: o.table,
+      items: syn.items,
+      note: p.name,
+      subtotalUSD: syn.totalUSD,
+      taxUSD: 0,
+      totalUSD: syn.totalUSD,
+      totalKHR: syn.totalKHR,
+      finalTotalUSD: finalUSD,
+      finalTotalKHR: finalKHR,
+      discountAmt: discountAmt > 0.001 ? discountAmt : undefined,
+      discountType: pmDiscountType,
+      discountVal: pmDiscountVal,
+      paymentMethod: pmMethod,
+      cashReceivedUSD: p.cashReceivedUSD,
+      cashReceivedKHR: p.cashReceivedKHR,
+      cashChange: p.cashChange,
+      cashChangeKHR: p.cashChangeKHR,
+      paid: true,
+    };
+    showReceipt(realId, 3, personOrder);
+
+    // Check if every person with assigned items has now paid
+    const allDone = splitPersons
+      .filter(x => personTotal(x.id, o).rows.length > 0)
+      .every(x => x.paid);
+
+    if (allDone) {
+      try {
+        const splitLog = splitPersons.map(px => ({
+          name:px.name, paid:px.paid,
+          method:px.paymentMethod||"", change:px.cashChange||0
+        }));
+        await updateDoc(doc(db,"orders",realId), {
+          paid:true, status:"paid",
+          paidAt: new Date().toISOString(),
+          paymentMethod:"split", splitLog
+        });
+        const idx = orders.findIndex(x => x.firestoreId===realId);
+        if (idx!==-1) orders[idx] = { ...orders[idx], paid:true, status:"paid" };
+        toast(tr("allPaid"));
+        closeSplitModal();
+        if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
+      } catch(e) {
+        toast(tr("error") + ": " + e.message);
+        btn.disabled = false; btn.textContent = tr("confirmPaymentReceived");
+      }
+    } else {
+      // Still more persons to pay — refresh split modal behind the receipt
+      renderSplitModal();
+    }
+    return;
+  }
+
+  /* ── NORMAL (non-split) PAYMENT PATH ── */
   const o = orders.find(o => o.firestoreId === pmOrderId);
   if (!o) return;
   const baseUSD     = o.totalUSD || o.total || 0;
@@ -1767,6 +1787,8 @@ window.confirmPayment = async () => {
 window.closePaymentModal = () => {
   document.getElementById("payment-modal").classList.remove("open");
   pmOrderId = null;
+  window._splitPayingPid = null;
+  window._splitSyntheticOrder = null;
 };
 
 /* ─── DISCOUNT LOGIC ─── */
@@ -2917,6 +2939,9 @@ input,textarea{font-family:inherit}
 .so-table-btn{padding:8px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .15s;text-align:center}
 .so-table-btn:hover{border-color:var(--green);color:var(--green-dark)}
 .so-table-btn.active{background:var(--green);border-color:var(--green);color:#fff}
+.so-table-btn.occupied{background:#FFF3CD;border-color:#E6A817;color:#8B6200}
+.so-table-btn.occupied:hover{background:#FFE599;border-color:#C8900A}
+.so-table-btn.active.occupied{background:var(--green);border-color:var(--green);color:#fff}
 .so-menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:16px}
 @media(min-width:640px){.so-menu-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
 @media(min-width:1024px){.so-menu-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
