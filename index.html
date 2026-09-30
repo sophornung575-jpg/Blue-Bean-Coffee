@@ -76,7 +76,7 @@ const I18N = {
     mixCurrencyHint: "Customer can pay with a mix of USD and KHR — enter both if needed.",
     dateRange: "Date Range", today: "Today", thisWeek: "This Week", thisMonth: "This Month",
     allTime: "All Time", custom: "Custom", from: "From", to: "To", apply: "Apply",
-    showing: "Showing", orders: "Orders", revenue: "Revenue", totalRevenueKHR: "Total Revenue (KHR)",
+    showing: "Showing", orders: "Orders", revenue: "Revenue", grossSales: "Gross sales", discounts: "Discounts", netRevenue: "Net revenue", totalRevenueKHR: "Total Revenue (KHR)",
     paymentMethods: "Payment Methods", topItems: "Top Items", noOrdersInRange: "No orders in this range",
     actions: "Actions", sendDailySummary: "📤 Send Daily Summary to Telegram",
     exportCSV: "📥 Export CSV (this range)", deleteAllOrders: "🗑️ Delete All Orders",
@@ -173,7 +173,7 @@ const I18N = {
     mixCurrencyHint: "អតិថិជនអាចបង់ប្រាក់ជាដុល្លារ និងរៀលរួមគ្នា — សូមបញ្ចូលទាំងពីរប្រសិនបើត្រូវការ។",
     dateRange: "ចន្លោះកាលបរិច្ឆេទ", today: "ថ្ងៃនេះ", thisWeek: "សប្តាហ៍នេះ", thisMonth: "ខែនេះ",
     allTime: "គ្រប់ពេល", custom: "កំណត់ដោយខ្លួនឯង", from: "ពី", to: "ដល់", apply: "អនុវត្ត",
-    showing: "កំពុងបង្ហាញ", orders: "ការកម្ម៉ង់", revenue: "ប្រាក់ចំណូល", totalRevenueKHR: "ប្រាក់ចំណូលសរុប (រៀល)",
+    showing: "កំពុងបង្ហាញ", orders: "ការកម្ម៉ង់", revenue: "ប្រាក់ចំណូល", grossSales: "ការលក់សរុប", discounts: "បញ្ចុះតម្លៃ", netRevenue: "ប្រាក់ចំណូលសុទ្ធ", totalRevenueKHR: "ប្រាក់ចំណូលសរុប (រៀល)",
     paymentMethods: "វិធីបង់ប្រាក់", topItems: "មុខម្ហូបពេញនិយម", noOrdersInRange: "មិនមានការកម្ម៉ង់ក្នុងចន្លោះនេះ",
     actions: "សកម្មភាព", sendDailySummary: "📤 ផ្ញើសេចក្តីសង្ខេបប្រចាំថ្ងៃទៅ Telegram",
     exportCSV: "📥 នាំចេញ CSV (ចន្លោះនេះ)", deleteAllOrders: "🗑️ លុបការកម្ម៉ង់ទាំងអស់",
@@ -1162,24 +1162,49 @@ function statsRangeLabel() {
   return labels[statsRange] || tr("allTime");
 }
 
+/* ─── REVENUE HELPERS ───
+   totalUSD is the bill BEFORE discount. finalTotalUSD (set at payment) is what
+   was actually collected. Revenue must always use the net amount. */
+function grossUSD(o) { return Number(o.totalUSD || o.total || 0); }
+function grossKHR(o) { return Number(o.totalKHR) || Math.round(grossUSD(o) * KHR_RATE); }
+function discUSD(o)  { return Number(o.discountAmt) || 0; }
+function netUSD(o)   { return o.finalTotalUSD !== undefined ? Number(o.finalTotalUSD) || 0 : grossUSD(o); }
+function netKHR(o)   { return o.finalTotalKHR !== undefined ? Number(o.finalTotalKHR) || 0 : grossKHR(o); }
+
+// Payment-method totals (net). Split bills are broken down per person via splitLog.
+function tallyMethods(paidOrders) {
+  const byMethod = { cash:0, card:0, qr:0 };
+  const byMethodCount = { cash:0, card:0, qr:0 };
+  paidOrders.forEach(o => {
+    if (o.paymentMethod === "split" && Array.isArray(o.splitLog)) {
+      o.splitLog.forEach(p => {
+        if (!p.paid || byMethod[p.method] === undefined || p.amount === undefined) return;
+        byMethod[p.method] += Number(p.amount) || 0;
+        byMethodCount[p.method]++;
+      });
+      return;
+    }
+    const m = o.paymentMethod || "cash"; // legacy orders without a method default to cash
+    if (byMethod[m] === undefined) return;
+    byMethod[m] += netUSD(o);
+    byMethodCount[m]++;
+  });
+  return { byMethod, byMethodCount };
+}
+
 function renderStats(el) {
   const scoped = filterOrdersByStatsRange(orders);
   const paid   = scoped.filter(o => o.paid);
-  const rev    = paid.reduce((s, o) => s + (o.totalUSD||o.total||0), 0);
-  const revKHR = paid.reduce((s, o) => s + (o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE)), 0);
+  const gross  = paid.reduce((s, o) => s + grossUSD(o), 0);
+  const disc   = paid.reduce((s, o) => s + discUSD(o), 0);
+  const rev    = paid.reduce((s, o) => s + netUSD(o), 0);
+  const revKHR = paid.reduce((s, o) => s + netKHR(o), 0);
   const counts = {};
   scoped.forEach(o => o.items.forEach(i => { counts[i.name] = (counts[i.name]||0) + i.qty; }));
   const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
 
-  // Payment method breakdown
-  const byMethod = { cash:0, card:0, qr:0 };
-  const byMethodCount = { cash:0, card:0, qr:0 };
-  paid.forEach(o => {
-    const m = o.paymentMethod || "cash"; // legacy orders without a method default to cash
-    if (byMethod[m] === undefined) return;
-    byMethod[m] += (o.totalUSD||o.total||0);
-    byMethodCount[m]++;
-  });
+  // Payment method breakdown (net of discounts)
+  const { byMethod, byMethodCount } = tallyMethods(paid);
 
   const presets = [["today",tr("today")],["week",tr("thisWeek")],["month",tr("thisMonth")],["all",tr("allTime")]];
 
@@ -1210,6 +1235,7 @@ function renderStats(el) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;text-align:center">
       <div style="font-size:11px;color:var(--text3);margin-bottom:2px">${tr("totalRevenueKHR")}</div>
       <div style="font-size:20px;font-weight:700;color:var(--green)">${revKHR.toLocaleString()} រៀល</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">${tr("grossSales")} $${gross.toFixed(2)} − ${tr("discounts")} $${disc.toFixed(2)} = <strong style="color:var(--text2)">${tr("netRevenue")} $${rev.toFixed(2)}</strong></div>
     </div>
 
     <div class="admin-section-title">${tr("paymentMethods")}</div>
@@ -1230,25 +1256,30 @@ function renderStats(el) {
 window.exportStatsCSV = () => {
   const scoped = filterOrdersByStatsRange(orders);
   if (!scoped.length) { toast(tr("noOrdersInRange")); return; }
-  const headers = ["Order ID","Table","Items","Subtotal USD","Tax USD","Total USD","Total KHR","Payment Method","Cash Received USD","Cash Received KHR","Change USD","Change KHR","Status","Time"];
+  const headers = ["Order ID","Table","Items","Subtotal USD","Tax USD","Total USD","Total KHR","Discount USD","Discount KHR","Final Total USD","Final Total KHR","Payment Method","Cash Received USD","Cash Received KHR","Change USD","Change KHR","Status","Remark","Time"];
   const rows = scoped.map(o => [
     o.firestoreId || "",
     o.table,
     o.items.map(i => `${i.qty}x ${i.name}`).join("; "),
     (o.subtotalUSD||o.subtotal||0).toFixed(2),
     (o.taxUSD||o.tax||0).toFixed(2),
-    (o.totalUSD||o.total||0).toFixed(2),
-    o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE),
+    grossUSD(o).toFixed(2),
+    grossKHR(o),
+    discUSD(o) ? discUSD(o).toFixed(2) : "0.00",
+    Number(o.discountAmtKHR) || Math.round(discUSD(o) * KHR_RATE),
+    netUSD(o).toFixed(2),
+    netKHR(o),
     o.paymentMethod || "",
     o.cashReceivedUSD !== undefined ? o.cashReceivedUSD.toFixed(2) : "",
     o.cashReceivedKHR !== undefined ? o.cashReceivedKHR : "",
     o.cashChange !== undefined ? o.cashChange.toFixed(2) : "",
     o.cashChangeKHR !== undefined ? o.cashChangeKHR : "",
     o.paid ? "paid" : (o.status||"pending"),
+    (o.note || "").replace(/\r?\n/g, " "),
     new Date(o.time).toLocaleString()
   ]);
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `bluebean-orders-${statsRangeLabel().replace(/[^a-z0-9]+/gi,"-")}.csv`;
@@ -1698,17 +1729,33 @@ window.confirmPayment = async () => {
 
     if (allDone) {
       try {
-        const splitLog = splitPersons.map(px => ({
-          name:px.name, paid:px.paid,
-          method:px.paymentMethod||"", change:px.cashChange||0
-        }));
-        await updateDoc(doc(db,"orders",realId), {
+        const splitLog = splitPersons
+          .filter(px => personTotal(px.id, o).rows.length > 0)
+          .map(px => ({
+            name:px.name, paid:px.paid,
+            method:px.paymentMethod||"", change:px.cashChange||0,
+            amount: px.finalTotal !== undefined ? px.finalTotal : personTotal(px.id, o).total,
+            discount: px.discountAmt || 0
+          }));
+        const splitPayload = {
           paid:true, status:"paid",
           paidAt: new Date().toISOString(),
           paymentMethod:"split", splitLog
-        });
+        };
+        // Save combined discount of all persons so revenue is net
+        const splitDisc = splitLog.reduce((s,x) => s + (x.discount||0), 0);
+        if (splitDisc > 0.001) {
+          const net = Math.max(0, (o.totalUSD||o.total||0) - splitDisc);
+          splitPayload.discountType   = "fixed";
+          splitPayload.discountVal    = splitDisc;
+          splitPayload.discountAmt    = splitDisc;
+          splitPayload.discountAmtKHR = Math.round(splitDisc * KHR_RATE);
+          splitPayload.finalTotalUSD  = net;
+          splitPayload.finalTotalKHR  = Math.round(net * KHR_RATE);
+        }
+        await updateDoc(doc(db,"orders",realId), splitPayload);
         const idx = orders.findIndex(x => x.firestoreId===realId);
-        if (idx!==-1) orders[idx] = { ...orders[idx], paid:true, status:"paid" };
+        if (idx!==-1) orders[idx] = { ...orders[idx], ...splitPayload };
         toast(tr("allPaid"));
         closeSplitModal();
         if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
@@ -2522,17 +2569,12 @@ window.sendDailySummary = async () => {
   const todayOrders = orders.filter(o => new Date(o.time).toDateString() === today);
   const paid = todayOrders.filter(o => o.paid);
 
-  const totalUSD = paid.reduce((s,o) => s + (o.totalUSD||o.total||0), 0);
-  const totalKHR = paid.reduce((s,o) => s + (o.totalKHR || Math.round((o.totalUSD||o.total||0)*KHR_RATE)), 0);
+  const grossTotal = paid.reduce((s,o) => s + grossUSD(o), 0);
+  const discTotal  = paid.reduce((s,o) => s + discUSD(o), 0);
+  const totalUSD   = paid.reduce((s,o) => s + netUSD(o), 0);
+  const totalKHR   = paid.reduce((s,o) => s + netKHR(o), 0);
 
-  const byMethod = { cash:0, card:0, qr:0 };
-  const byMethodCount = { cash:0, card:0, qr:0 };
-  paid.forEach(o => {
-    const m = o.paymentMethod || "cash";
-    if (byMethod[m] === undefined) return;
-    byMethod[m] += (o.totalUSD||o.total||0);
-    byMethodCount[m]++;
-  });
+  const { byMethod, byMethodCount } = tallyMethods(paid);
 
   const dateLabel = new Date().toLocaleDateString([], { weekday:"long", year:"numeric", month:"long", day:"numeric" });
   const lines = [
@@ -2542,12 +2584,14 @@ window.sendDailySummary = async () => {
     `✅ Total Paid Orders: ${paid.length}`,
     `📋 Total Orders Placed: ${todayOrders.length}`,
     "",
-    `💰 *Revenue: $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ*`,
+    `🧾 Gross Sales: $${grossTotal.toFixed(2)}`,
+    `🏷️ Discounts: -$${discTotal.toFixed(2)}`,
+    `💰 *Net Revenue: $${totalUSD.toFixed(2)} / ${totalKHR.toLocaleString()}រ*`,
     "",
     `*Payment Methods:*`,
-    `  💵 Cash: $${byMethod.cash.toFixed(2)} (${byMethodCount.cash} orders)`,
-    `  💳 Card: $${byMethod.card.toFixed(2)} (${byMethodCount.card} orders)`,
-    `  📲 QR Pay: $${byMethod.qr.toFixed(2)} (${byMethodCount.qr} orders)`,
+    `  💵 Cash: $${byMethod.cash.toFixed(2)} (${byMethodCount.cash} payments)`,
+    `  💳 Card: $${byMethod.card.toFixed(2)} (${byMethodCount.card} payments)`,
+    `  📲 QR Pay: $${byMethod.qr.toFixed(2)} (${byMethodCount.qr} payments)`,
     "",
     `⏰ Sent ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`
   ];
