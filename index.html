@@ -473,24 +473,12 @@ function showFirestoreFixBanner() {
   banner.className = "fb-error-banner";
   banner.style.cssText = "position:fixed;top:68px;left:50%;transform:translateX(-50%);width:calc(100% - 20px);max-width:460px;background:#fff3cd;border:1.5px solid #ffc107;border-radius:10px;padding:12px 14px;font-size:12px;color:#664d03;z-index:99;line-height:1.7;box-shadow:0 4px 12px rgba(0,0,0,.1)";
   banner.innerHTML = `
-    <div style="font-weight:700;font-size:13px;margin-bottom:6px">⚠️ Firestore Rules Need Update</div>
-    <div>Go to <strong>Firebase Console → Firestore → Rules</strong> tab and paste:</div>
-    <div style="background:#1a1a1a;color:#4ade80;padding:8px 10px;border-radius:6px;margin:8px 0;font-family:monospace;font-size:11px;line-height:1.8">
-      rules_version = '2';<br>
-      service cloud.firestore {<br>
-      &nbsp;&nbsp;match /databases/{database}/documents {<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;match /{document=<b>**</b>} {<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-      &nbsp;&nbsp;}<br>
-      }
-    </div>
-    <div>Then click <strong>Publish</strong> and refresh this page.</div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">🔒 Permission denied</div>
+    <div>${currentAdmin
+      ? "Your account is not on the admin list in the Firestore rules. Add your UID to the rules."
+      : "This action needs an admin. Please sign in first."}</div>
     <div style="margin-top:8px;display:flex;gap:8px">
-      <a href="https://console.firebase.google.com/project/blue-bean-coffee-ec0c3/firestore/rules" target="_blank"
-        style="background:#5BB8D4;color:#fff;padding:6px 14px;border-radius:6px;font-weight:600;font-size:12px;text-decoration:none">
-        Open Firebase Rules →
-      </a>
+      ${currentAdmin ? "" : `<span onclick="this.parentNode.parentNode.remove();showLoginModal()" style="background:#5BB8D4;color:#fff;padding:6px 14px;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer">🔑 Sign in</span>`}
       <span onclick="this.parentNode.parentNode.remove()" style="padding:6px 14px;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:12px">Dismiss</span>
     </div>`;
   document.body.appendChild(banner);
@@ -1996,12 +1984,6 @@ function renderMenuManager() {
           <div style="font-size:14px;font-weight:700;margin:10px 0 6px;color:var(--text)">${tr("noMenuItemsYet")}</div>
           <div style="font-size:12px;color:var(--text3);margin-bottom:16px">${tr("makeSureFirestoreRules")}</div>
           <button class="btn-add-item" onclick="openAddForm()" style="padding:12px 28px;font-size:14px">${tr("addFirstItem")}</button>
-          <div style="margin-top:20px;background:#f8f8f4;border-radius:10px;padding:14px;text-align:left;font-size:12px;color:var(--text2);line-height:1.8">
-            <div style="font-weight:700;margin-bottom:6px">📋 Firestore Setup (one-time)</div>
-            <div>1. Go to <a href="https://console.firebase.google.com/project/blue-bean-coffee-ec0c3/firestore/rules" target="_blank" style="color:var(--green);font-weight:600">Firebase Console → Rules</a></div>
-            <div>2. Paste: <code style="background:#e0e0d8;padding:1px 5px;border-radius:3px">allow read, write: if true;</code></div>
-            <div>3. Click <strong>Publish</strong> → refresh this page</div>
-          </div>
         </div>`
       : '<div class="menu-mgr-grid">' + menuItems.map(item => {
           const usd = Number(item.priceUSD)||0;
@@ -3627,7 +3609,5 @@ input,textarea{font-family:inherit}
 <div class="toast" id="toast"></div>
 </div>
 
-<!-- Enable Firebase Storage: add to Firestore rules in console -->
-<!-- storage.rules: allow read, write: if true; -->
 </body>
 </html>
