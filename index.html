@@ -411,8 +411,7 @@ window.doLogin = async () => {
     await signInWithEmailAndPassword(auth, email, password);
     closeLoginModal();
     toast(tr("signedInAsAdmin"));
-    // Re-render admin page to show all tabs
-    if (document.getElementById("page-admin").classList.contains("active")) renderAdmin();
+    switchPage("admin");
   } catch(e) {
     errEl.textContent = e.code === "auth/invalid-credential"
       ? tr("wrongEmailPassword")
@@ -424,6 +423,7 @@ window.doLogin = async () => {
 // Tap the logo 5 times quickly to open staff sign-in
 let logoTaps = 0, logoTapTimer;
 window.logoTap = () => {
+  if (currentAdmin) { switchPage("admin"); return; }
   logoTaps++;
   clearTimeout(logoTapTimer);
   logoTapTimer = setTimeout(() => logoTaps = 0, 1500);
@@ -523,6 +523,7 @@ function startOrdersListener() {
 /* ─── NAVIGATION ─── */
 window.switchPage = p => {
   if (!currentAdmin && ["admin","order","setup"].includes(p)) { showLoginModal(); return; }
+  if (p === "setup") { switchPage("admin"); adminTab("setup"); return; }
   document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
   document.querySelectorAll(".nav-btn").forEach(el => el.classList.remove("active"));
   document.getElementById("page-" + p).classList.add("active");
@@ -1008,12 +1009,20 @@ window.adminTab = t => {
   }
   activeAdminTab = t;
   document.querySelectorAll(".admin-tab").forEach((b,i) =>
-    b.classList.toggle("active", ["live","history","stats","menu"][i] === t));
+    b.classList.toggle("active", ["live","history","stats","menu","setup"][i] === t));
   renderAdmin();
 };
 
 function renderAdmin() {
   const el = document.getElementById("admin-body");
+  const setupEl = document.getElementById("page-setup");
+  if (currentAdmin && activeAdminTab === "setup") {
+    el.style.display = "none";
+    if (!setupEl.classList.contains("active")) { setupEl.classList.add("active"); initSetupPage(); }
+    return;
+  }
+  el.style.display = "";
+  setupEl.classList.remove("active");
 
   // Not logged in — show login prompt
   if (!currentAdmin) {
@@ -3042,7 +3051,7 @@ input,textarea{font-family:inherit}
 @media (min-width:1440px){ .bottom-nav{max-width:1240px} }
 .nav-btn{flex:1;padding:10px 4px 12px;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text3);font-size:10px;font-weight:500;transition:color .2s;position:relative}
 .nav-btn.active{color:var(--green)}
-body:not(.is-admin) #nav-admin, body:not(.is-admin) #nav-order, body:not(.is-admin) #nav-setup{display:none}
+body:not(.is-admin) #nav-order{display:none}
 .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nav-badge{position:absolute;top:6px;right:calc(50% - 18px);background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center;line-height:16px}
 
@@ -3051,6 +3060,7 @@ body:not(.is-admin) #nav-admin, body:not(.is-admin) #nav-order, body:not(.is-adm
 @media (min-width:640px){ .page{padding:16px 20px 90px} }
 @media (min-width:1024px){ .page{padding:20px 28px 100px} }
 .page.active{display:block}
+#page-admin #page-setup{padding:0;overflow:visible}
 
 /* Cats */
 .cat-row{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:4px;scrollbar-width:none}
@@ -3328,9 +3338,95 @@ body:not(.is-admin) #nav-admin, body:not(.is-admin) #nav-order, body:not(.is-adm
     <button class="admin-tab" onclick="adminTab('history')"><span data-i18n="history">History</span></button>
     <button class="admin-tab" onclick="adminTab('stats')"><span data-i18n="stats">Stats</span></button>
     <button class="admin-tab" onclick="adminTab('menu')">🍽️ <span data-i18n="menu">Menu</span></button>
+    <button class="admin-tab" onclick="adminTab('setup')">⚙️ <span data-i18n="setup">Setup</span></button>
     <button class="admin-tab" id="admin-auth-btn" onclick="showLoginModal()" style="margin-left:auto;border-color:var(--green);color:var(--green)">🔑 <span data-i18n="signIn">Login</span></button>
   </div>
   <div id="admin-body"></div>
+  <div class="page" id="page-setup">
+    <div class="setup-section">
+      <div class="setup-section-header">
+        <div class="setup-icon" style="background:var(--green-light);color:var(--green-text)">📱</div>
+        <div><div class="setup-title" data-i18n="qrMenuGenerator">QR Menu Generator</div><div class="setup-sub" data-i18n="onePerTable">One QR per table</div></div>
+      </div>
+      <div class="section-label" data-i18n="selectTable">Select table</div>
+      <div class="table-grid" id="table-grid"></div>
+      <div class="qr-preview">
+        <div class="qr-card">
+          <div id="qr-container" style="width:200px;height:200px;margin:0 auto"></div>
+          <div class="qr-label"><span data-i18n="table">Table</span> <span id="qr-table-num">1</span></div>
+          <div class="qr-sublabel" id="qr-url-label">sophornung575-jpg.github.io/Blue-Bean-Coffee/?table=1</div>
+        </div>
+      </div>
+      <button class="sm-btn green" onclick="downloadQR()" style="margin:0 auto">
+        <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+        Download QR
+      </button>
+    </div>
+  
+    <div class="setup-section">
+      <div class="setup-section-header">
+        <div class="setup-icon" style="background:#e8f4fd;color:#229ED9">✈️</div>
+        <div><div class="setup-title" data-i18n="telegramAlertBot">Telegram Alert Bot</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="botToken">Bot Token</label>
+        <input class="form-input" type="text" id="tg-token" placeholder="1234567890:AAFHbc...">
+        <div class="form-hint">Create bot: @BotFather → /newbot</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="chatId">Chat ID</label>
+        <input class="form-input" type="text" id="tg-chat" placeholder="-1001234567890">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="sm-btn green" onclick="saveTelegram()">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> <span data-i18n="save">Save</span>
+        </button>
+        <button class="sm-btn" onclick="testTelegram()">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> <span data-i18n="test">Test</span>
+        </button>
+      </div>
+      <div id="tg-alert" style="display:none"></div>
+    </div>
+  
+    <div class="setup-section">
+      <div class="setup-section-header">
+        <div class="setup-icon" style="background:var(--blue-light);color:var(--blue)">🖨️</div>
+        <div><div class="setup-title" data-i18n="bluetoothPrinter">Bluetooth Printer</div><div class="setup-sub" data-i18n="chromeOnly">Chrome only</div></div>
+      </div>
+      <button class="sm-btn" onclick="connectBluetooth()">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 2L12 22M12 7L17 12L12 17"/></svg>
+        <span id="bt-btn-label" data-i18n="connectPrinter">Connect Printer</span>
+      </button>
+      <div id="bt-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
+    </div>
+  
+    <div class="setup-section">
+      <div class="setup-section-header">
+        <div class="setup-icon" style="background:var(--surface2)">⚙️</div>
+        <div><div class="setup-title" data-i18n="restaurantSettings">Restaurant Settings</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="name">Name</label>
+        <input class="form-input" type="text" id="settings-name">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="addressTagline">Address / Tagline</label>
+        <input class="form-input" type="text" id="settings-addr">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="tableNumber">Table Number</label>
+        <input class="form-input" type="number" id="settings-table" min="1" max="99">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="taxRate">Tax Rate (%)</label>
+        <input class="form-input" type="number" id="settings-tax" min="0" max="50">
+      </div>
+      <button class="sm-btn green" onclick="saveSettings()">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>
+        <span data-i18n="save">Save Settings</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- SETUP PAGE -->
@@ -3338,91 +3434,6 @@ body:not(.is-admin) #nav-admin, body:not(.is-admin) #nav-order, body:not(.is-adm
   <div id="staff-order-body"></div>
 </div>
 
-<div class="page" id="page-setup">
-  <div class="setup-section">
-    <div class="setup-section-header">
-      <div class="setup-icon" style="background:var(--green-light);color:var(--green-text)">📱</div>
-      <div><div class="setup-title" data-i18n="qrMenuGenerator">QR Menu Generator</div><div class="setup-sub" data-i18n="onePerTable">One QR per table</div></div>
-    </div>
-    <div class="section-label" data-i18n="selectTable">Select table</div>
-    <div class="table-grid" id="table-grid"></div>
-    <div class="qr-preview">
-      <div class="qr-card">
-        <div id="qr-container" style="width:200px;height:200px;margin:0 auto"></div>
-        <div class="qr-label"><span data-i18n="table">Table</span> <span id="qr-table-num">1</span></div>
-        <div class="qr-sublabel" id="qr-url-label">sophornung575-jpg.github.io/Blue-Bean-Coffee/?table=1</div>
-      </div>
-    </div>
-    <button class="sm-btn green" onclick="downloadQR()" style="margin:0 auto">
-      <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-      Download QR
-    </button>
-  </div>
-
-  <div class="setup-section">
-    <div class="setup-section-header">
-      <div class="setup-icon" style="background:#e8f4fd;color:#229ED9">✈️</div>
-      <div><div class="setup-title" data-i18n="telegramAlertBot">Telegram Alert Bot</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="botToken">Bot Token</label>
-      <input class="form-input" type="text" id="tg-token" placeholder="1234567890:AAFHbc...">
-      <div class="form-hint">Create bot: @BotFather → /newbot</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="chatId">Chat ID</label>
-      <input class="form-input" type="text" id="tg-chat" placeholder="-1001234567890">
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="sm-btn green" onclick="saveTelegram()">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> <span data-i18n="save">Save</span>
-      </button>
-      <button class="sm-btn" onclick="testTelegram()">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> <span data-i18n="test">Test</span>
-      </button>
-    </div>
-    <div id="tg-alert" style="display:none"></div>
-  </div>
-
-  <div class="setup-section">
-    <div class="setup-section-header">
-      <div class="setup-icon" style="background:var(--blue-light);color:var(--blue)">🖨️</div>
-      <div><div class="setup-title" data-i18n="bluetoothPrinter">Bluetooth Printer</div><div class="setup-sub" data-i18n="chromeOnly">Chrome only</div></div>
-    </div>
-    <button class="sm-btn" onclick="connectBluetooth()">
-      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 2L12 22M12 7L17 12L12 17"/></svg>
-      <span id="bt-btn-label" data-i18n="connectPrinter">Connect Printer</span>
-    </button>
-    <div id="bt-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
-  </div>
-
-  <div class="setup-section">
-    <div class="setup-section-header">
-      <div class="setup-icon" style="background:var(--surface2)">⚙️</div>
-      <div><div class="setup-title" data-i18n="restaurantSettings">Restaurant Settings</div><div class="setup-sub" data-i18n="savedToFirestore">Saved to Firestore</div></div>
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="name">Name</label>
-      <input class="form-input" type="text" id="settings-name">
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="addressTagline">Address / Tagline</label>
-      <input class="form-input" type="text" id="settings-addr">
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="tableNumber">Table Number</label>
-      <input class="form-input" type="number" id="settings-table" min="1" max="99">
-    </div>
-    <div class="form-group">
-      <label class="form-label" data-i18n="taxRate">Tax Rate (%)</label>
-      <input class="form-input" type="number" id="settings-tax" min="0" max="50">
-    </div>
-    <button class="sm-btn green" onclick="saveSettings()">
-      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>
-      <span data-i18n="save">Save Settings</span>
-    </button>
-  </div>
-</div>
 
 <!-- Cart Float -->
 <div class="cart-float" id="cart-float">
@@ -3441,14 +3452,8 @@ body:not(.is-admin) #nav-admin, body:not(.is-admin) #nav-order, body:not(.is-adm
     <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span data-i18n="cart">Cart</span>
     <span class="nav-badge" id="nav-cart-badge" style="display:none"></span>
   </button>
-  <button class="nav-btn" id="nav-admin" onclick="switchPage('admin')">
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span data-i18n="admin">Admin</span>
-  </button>
   <button class="nav-btn" id="nav-order" onclick="switchPage('order')">
     <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M12 12h4M12 16h4M8 12h.01M8 16h.01"/></svg><span data-i18n="staffOrder">Staff Order</span>
-  </button>
-  <button class="nav-btn" id="nav-setup" onclick="switchPage('setup')">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-i18n="setup">Setup</span>
   </button>
 </div>
 
