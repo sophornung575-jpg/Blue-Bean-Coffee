@@ -2019,9 +2019,10 @@ function renderMenuManager() {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
       <div style="font-size:14px;font-weight:700;color:var(--text)">${menuItems.length} ${tr("menuItems")}</div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${khrOutdatedCount() > 0 ? `<button class="sm-btn" onclick="recalcAllKHR()">🔄 Update ${khrOutdatedCount()} KHR prices to ${KHR_RATE.toLocaleString()}រ</button>` : ""}
         ${menuItems.length > 0 ? `<button class="sm-btn" onclick="exportMenuData()">${tr("exportMenu")}</button>` : ""}
+        ${menuItems.length > 0 ? `<button class="sm-btn" onclick="exportMenuPptx()">📊 PowerPoint</button>` : ""}
         <button class="btn-add-item" onclick="openAddForm()">${tr("addItem")}</button>
       </div>
     </div>
@@ -2063,38 +2064,47 @@ window.openAddForm = () => {
    CSV can't embed images, so this builds a self-contained HTML catalog instead —
    each item's photo (already a base64 data-URI) renders inline, no external files
    needed. Grouped by category, shows both USD and KHR prices, printable. */
+// Menu export split — page 1: all coffee (hot & iced) + matcha; page 2: iced tea, frappe and everything else.
+// Frappes always go to page 2, even "Coffee Frappe" / "Matcha Frappe".
+const splitMenuPages = () => {
+  const textOf = m => `${m.cat || ""} ${m.name || ""}`;
+  const isFrappe = m => /frapp|ផ្រាប់|ហ្វ្រាប់/i.test(textOf(m));
+  const isCoffeeOrMatcha = m => !isFrappe(m) &&
+    /coffee|latte|americano|espresso|cappuc+in|mocha|macchiato|flat\s*white|cold\s*brew|matcha|កាហ្វេ|ម៉ាចា|ម៉ាត់ឆា/i.test(textOf(m));
+  return [menuItems.filter(isCoffeeOrMatcha), menuItems.filter(m => !isCoffeeOrMatcha(m))];
+};
+const groupMenuByCat = list => {
+  const cats = [...new Set(list.map(m => m.cat || "Uncategorized"))];
+  return cats.map(cat => ({ cat, items: list.filter(m => (m.cat || "Uncategorized") === cat) }));
+};
+
 window.exportMenuData = () => {
   if (!menuItems.length) { toast(tr("noMenuItemsToExport")); return; }
 
-  // Iced drinks = category or item name mentions "ice"/"iced" (English) or "ទឹកកក" (Khmer)
-  const isIced = m => /\bice[d]?\b|ទឹកកក/i.test(`${m.cat || ""} ${m.name || ""}`);
-  const icedItems = menuItems.filter(isIced);
-  const otherItems = menuItems.filter(m => !isIced(m));
+  const [page1Items, page2Items] = splitMenuPages();
 
-  const buildSections = list => {
-    const cats = [...new Set(list.map(m => m.cat || "Uncategorized"))];
-    return cats.map(cat => {
-      const items = list.filter(m => (m.cat || "Uncategorized") === cat);
-      const cards = items.map(item => {
-        const usd = Number(item.priceUSD) || 0;
-        const khr = item.priceKHR ? Number(item.priceKHR) : Math.round(usd * KHR_RATE);
-        const img = item.photoBase64
-          ? `<img src="${item.photoBase64}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid #ddd"/>`
-          : `<div style="width:100%;aspect-ratio:1;border-radius:10px;border:1px solid #ddd;background:#f5f5f0;display:flex;align-items:center;justify-content:center;font-size:40px">${item.emoji || "☕"}</div>`;
-        return `
-          <div style="background:#fff;border:1px solid #e5e5dd;border-radius:12px;padding:10px;text-align:center;break-inside:avoid">
-            ${img}
-            <div style="font-weight:700;font-size:13px;margin-top:8px;color:#1a1a1a">${item.name}</div>
-            <div style="font-weight:600;font-size:12px;color:#2e7d32;margin-top:3px">$${usd.toFixed(2)} · ${khr.toLocaleString()}រ</div>
-          </div>`;
-      }).join("");
+  const groupByCat = groupMenuByCat;
+
+  const buildSections = list => groupByCat(list).map(({ cat, items }) => {
+    const cards = items.map(item => {
+      const usd = Number(item.priceUSD) || 0;
+      const khr = item.priceKHR ? Number(item.priceKHR) : Math.round(usd * KHR_RATE);
+      const img = item.photoBase64
+        ? `<img class="ph" src="${item.photoBase64}"/>`
+        : `<div class="ph ph-empty">${item.emoji || "☕"}</div>`;
       return `
-        <div style="margin-bottom:28px">
-          <h2 style="font-size:18px;color:#1a1a1a;border-bottom:2px solid #2e7d32;padding-bottom:6px;margin-bottom:14px">${cat}</h2>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">${cards}</div>
-        </div>`;
+          <div class="card">
+            ${img}
+            <div class="nm">${item.name}</div>
+            <div class="pr">$${usd.toFixed(2)} · ${khr.toLocaleString()}រ</div>
+          </div>`;
     }).join("");
-  };
+    return `
+        <div class="sec">
+          <h2>${cat}</h2>
+          <div class="grid">${cards}</div>
+        </div>`;
+  }).join("");
 
   const buildPage = list => !list.length ? "" : `
     <section class="page">
@@ -2104,7 +2114,24 @@ window.exportMenuData = () => {
       ${buildSections(list)}
     </section>`;
 
-  const pages = buildPage(icedItems) + buildPage(otherItems);
+  const pages = buildPage(page1Items) + buildPage(page2Items);
+
+  // Print layout. Photo size (--ph) is set per page by the script inside the exported file.
+  const PRINT_CSS = b => `
+    ${b}{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    ${b} .wrap{max-width:none;width:748px;margin:0}
+    ${b} .page{break-inside:avoid;page-break-inside:avoid}
+    ${b} .page + .page{margin-top:0;padding-top:0;border-top:none;break-before:page;page-break-before:always}
+    ${b} header{margin-bottom:6px}
+    ${b} header h1{font-size:20px;margin:0}
+    ${b} .sec{margin-bottom:8px}
+    ${b} .sec h2{font-size:14px;padding-bottom:2px;margin:0 0 5px}
+    ${b} .grid{grid-template-columns:repeat(auto-fill,calc(var(--ph,140px) + 10px));justify-content:center;gap:6px}
+    ${b} .card{padding:4px;border-radius:8px;box-sizing:border-box}
+    ${b} .ph{border-radius:6px}
+    ${b} .ph-empty{font-size:28px}
+    ${b} .nm{font-size:11px;margin-top:3px;line-height:1.2}
+    ${b} .pr{font-size:10px;margin-top:1px}`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -2117,16 +2144,44 @@ window.exportMenuData = () => {
   .page + .page{margin-top:48px;padding-top:40px;border-top:3px dashed #ccc}
   header{text-align:center;margin-bottom:28px}
   header h1{font-size:24px;margin:0 0 4px}
-  @media print{
-    body{background:#fff;padding:0}
-    .page + .page{margin-top:0;padding-top:0;border-top:none;break-before:page;page-break-before:always}
-  }
+  .sec{margin-bottom:28px}
+  .sec h2{font-size:18px;color:#1a1a1a;border-bottom:2px solid #2e7d32;padding-bottom:6px;margin:0 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .card{background:#fff;border:1px solid #e5e5dd;border-radius:12px;padding:10px;text-align:center;break-inside:avoid}
+  .ph{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid #ddd;box-sizing:border-box}
+  .ph-empty{background:#f5f5f0;display:flex;align-items:center;justify-content:center;font-size:40px}
+  .nm{font-weight:700;font-size:13px;margin-top:8px;color:#1a1a1a}
+  .pr{font-weight:600;font-size:12px;color:#2e7d32;margin-top:3px}
+  @page{size:A4 portrait;margin:6mm}
+  @media print{ ${PRINT_CSS("body")} }
+  ${PRINT_CSS("body.pl")}
 </style>
 </head>
 <body>
   <div class="wrap">
     ${pages}
   </div>
+<script>
+// Find the biggest photo size that keeps each page on ONE A4 sheet (198 x 285 mm printable = 748 x 1077 px).
+(function(){
+  var MAX_H = 1060;
+  function fit(){
+    var b = document.body; b.classList.add("pl");
+    var pages = document.querySelectorAll(".page");
+    for (var i = 0; i < pages.length; i++){
+      var p = pages[i], best = 60;
+      for (var ph = 340; ph >= 60; ph -= 4){
+        p.style.setProperty("--ph", ph + "px");
+        if (p.offsetHeight <= MAX_H){ best = ph; break; }
+      }
+      p.style.setProperty("--ph", best + "px");
+    }
+    b.classList.remove("pl");
+  }
+  if (document.readyState === "complete") fit(); else window.addEventListener("load", fit);
+  window.addEventListener("beforeprint", fit);
+})();
+<\/script>
 </body>
 </html>`;
 
@@ -2136,6 +2191,98 @@ window.exportMenuData = () => {
   a.download = `${(settings.name || "menu").replace(/[^a-z0-9]+/gi, "-")}-menu-export.html`;
   a.click();
   toast(tr("menuExportedWithPhotos"));
+};
+
+// ---------- Export menu as PowerPoint (2 A4 portrait slides, editable photos) ----------
+let _pptxLoading = null;
+const loadPptxGen = () => window.PptxGenJS ? Promise.resolve() : (_pptxLoading ||= new Promise((ok, bad) => {
+  const sc = document.createElement("script");
+  sc.src = "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
+  sc.onload = ok; sc.onerror = () => { _pptxLoading = null; bad(new Error("PowerPoint library failed to load")); };
+  document.head.appendChild(sc);
+}));
+const imgRatio = src => new Promise(res => {
+  const im = new Image();
+  im.onload = () => res(im.naturalWidth && im.naturalHeight ? im.naturalHeight / im.naturalWidth : 1);
+  im.onerror = () => res(1);
+  im.src = src;
+});
+
+// Layout in inches. Finds the biggest square photo size that fits the whole list on one A4 slide.
+const layoutMenuSlide = list => {
+  const W = 8.27, H = 11.69, M = 0.3, GAP = 0.1, TITLE_H = 0.5, HEAD_H = 0.32, TEXT_H = 0.42, SEC_GAP = 0.12;
+  const groups = groupMenuByCat(list);
+  let s = 3.0;
+  for (; s > 0.6; s -= 0.02) {
+    const cols = Math.max(1, Math.floor((W - 2 * M + GAP) / (s + GAP)));
+    let h = M + TITLE_H;
+    groups.forEach(g => {
+      const rows = Math.ceil(g.items.length / cols);
+      h += HEAD_H + rows * (s + TEXT_H) + (rows - 1) * GAP + SEC_GAP;
+    });
+    if (h + M <= H) break;
+  }
+  const cols = Math.max(1, Math.floor((W - 2 * M + GAP) / (s + GAP)));
+  const placed = [], heads = [];
+  let y = M + TITLE_H;
+  groups.forEach(g => {
+    heads.push({ cat: g.cat, y });
+    y += HEAD_H;
+    for (let r = 0; r * cols < g.items.length; r++) {
+      const row = g.items.slice(r * cols, r * cols + cols);
+      const x0 = M + ((W - 2 * M) - (cols * s + (cols - 1) * GAP)) / 2; // left-aligned within centred grid
+      row.forEach((item, i) => placed.push({ item, x: x0 + i * (s + GAP), y, s }));
+      y += s + TEXT_H + GAP;
+    }
+    y += SEC_GAP - GAP;
+  });
+  return { W, H, M, placed, heads, cols, s };
+};
+
+window.exportMenuPptx = async () => {
+  if (!menuItems.length) { toast(tr("noMenuItemsToExport")); return; }
+  toast("⏳ Making PowerPoint…");
+  try {
+    await loadPptxGen();
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({ name: "A4P", width: 8.27, height: 11.69 });
+    pptx.layout = "A4P";
+    pptx.title = `${settings.name} Menu`;
+
+    for (const list of splitMenuPages()) {
+      if (!list.length) continue;
+      const L = layoutMenuSlide(list);
+      const slide = pptx.addSlide();
+      slide.background = { color: "FFFFFF" };
+      slide.addText(settings.name || "Menu", { x: L.M, y: L.M - 0.05, w: L.W - 2 * L.M, h: 0.45, fontSize: 22, bold: true, align: "center", color: "1A1A1A" });
+      L.heads.forEach(hd => {
+        slide.addText(hd.cat, { x: L.M, y: hd.y, w: L.W - 2 * L.M, h: 0.28, fontSize: 14, bold: true, color: "1A1A1A", margin: 0 });
+        slide.addShape(pptx.ShapeType.line, { x: L.M, y: hd.y + 0.28, w: L.W - 2 * L.M, h: 0, line: { color: "2E7D32", width: 1.5 } });
+      });
+      for (const p of L.placed) {
+        const it = p.item;
+        const usd = Number(it.priceUSD) || 0;
+        const khr = it.priceKHR ? Number(it.priceKHR) : Math.round(usd * KHR_RATE);
+        if (it.photoBase64) {
+          const ratio = await imgRatio(it.photoBase64);           // crop to a square, like the app
+          slide.addImage({ data: it.photoBase64, x: p.x, y: p.y, w: p.s, h: p.s * ratio,
+                           sizing: { type: "cover", w: p.s, h: p.s } });
+        } else {
+          slide.addText(it.emoji || "☕", { x: p.x, y: p.y, w: p.s, h: p.s, fontSize: Math.round(p.s * 30), align: "center", valign: "middle",
+                                             fill: { color: "F5F5F0" }, line: { color: "DDDDDD", width: 0.75 } });
+        }
+        slide.addText([
+          { text: it.name || "", options: { bold: true, fontSize: p.s > 1.6 ? 11 : 9, color: "1A1A1A", breakLine: true } },
+          { text: `$${usd.toFixed(2)} · ${khr.toLocaleString()}រ`, options: { bold: true, fontSize: p.s > 1.6 ? 10 : 8, color: "2E7D32" } }
+        ], { x: p.x - 0.04, y: p.y + p.s + 0.02, w: p.s + 0.08, h: 0.4, align: "center", valign: "top", margin: 0 });
+      }
+    }
+    await pptx.writeFile({ fileName: `${(settings.name || "menu").replace(/[^a-z0-9]+/gi, "-")}-menu.pptx` });
+    toast("📊 PowerPoint exported");
+  } catch (e) {
+    console.error(e);
+    toast("❌ PowerPoint export failed — check internet connection");
+  }
 };
 
 window.openEditForm = id => {
