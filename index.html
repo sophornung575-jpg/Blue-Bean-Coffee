@@ -2096,17 +2096,16 @@ window.exportMenuData = () => {
     }).join("");
   };
 
-  const buildPage = (title, list) => !list.length ? "" : `
+  const buildPage = list => !list.length ? "" : `
     <section class="page">
       <header>
         <img src="${LOGO_DATA_URI}" alt="${settings.name}" style="width:160px;height:160px;object-fit:contain;margin-bottom:10px"/>
         <h1>${settings.name}</h1>
-        <div class="page-title">${title}</div>
       </header>
       ${buildSections(list)}
     </section>`;
 
-  const pages = buildPage("Iced Drinks", icedItems) + buildPage("Menu", otherItems);
+  const pages = buildPage(icedItems) + buildPage(otherItems);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -2119,11 +2118,9 @@ window.exportMenuData = () => {
   .page + .page{margin-top:48px;padding-top:40px;border-top:3px dashed #ccc}
   header{text-align:center;margin-bottom:28px}
   header h1{font-size:24px;margin:0 0 4px}
-  .page-title{display:inline-block;margin-top:8px;padding:6px 18px;border-radius:20px;background:#2e7d32;color:#fff;font-weight:700;font-size:15px;letter-spacing:.5px}
   @media print{
     body{background:#fff;padding:0}
     .page + .page{margin-top:0;padding-top:0;border-top:none;break-before:page;page-break-before:always}
-    .page-title{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
 </style>
 </head>
